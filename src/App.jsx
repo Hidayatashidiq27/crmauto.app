@@ -1,5 +1,6 @@
 import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/clerk-react";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { supabase } from './supabaseClient';
 import { db } from "./firebase"; 
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, Sector, ComposedChart, AreaChart, Area, ScatterChart, Scatter, LabelList } from 'recharts';
@@ -3796,84 +3797,169 @@ const ProductAnalysisView = ({ productData }) => {
     );
 };
 
+// --- KOMPONEN UTAMA: DASHBOARD CRM ---
 function DashboardCRM() {
-    // --- INTEGRASI FIREBASE & CLERK ---
     const { user } = useUser();
-    const [isLoadingFirestore, setIsLoadingFirestore] = useState(true);
-
-    const [rawData, setRawData] = useState([]); 
-    const [adsData, setAdsData] = useState([]); 
+    
+    // 1. STATE DEFINITIONS
     const [view, setView] = useState('summary');
+    const [rawData, setRawData] = useState([]);
+    const [adsData, setAdsData] = useState([]);
+    
+    const [isLoadingFirestore, setIsLoadingFirestore] = useState(true);
     const [isUploading, setIsUploading] = useState(false);
-    const [uploadError, setUploadError] = useState(null);
-    const [uploadMode, setUploadMode] = useState('merge');
-    const [uploadType, setUploadType] = useState('sales'); 
     const [showUploadModal, setShowUploadModal] = useState(false);
+    const [uploadType, setUploadType] = useState('sales'); 
+    const [uploadMode, setUploadMode] = useState('merge'); 
+    const [uploadError, setUploadError] = useState(null);
+    const [fileNameDisplay, setFileNameDisplay] = useState("No file chosen");
 
-    // 1. LOAD DATA DARI FIREBASE SAAT LOGIN
+    // 2. DATA PROCESSING HOOK (Sales Data)
+    const processedData = useProcessedData(rawData);
+    
+    const { 
+        totalConfirmedRevenue, totalConfirmedOrders, totalGrossProfit,
+        customerSegmentationData, heatmapData, heatmapMaxRevenue,
+        rawTimeData, productVariantAnalysis, dailyTrendAnalysis,
+        provinceAnalysis, topLocationLists
+    } = processedData;
+
+    // --- HITUNG METRIK GABUNGAN (SALES + ADS) ---
+    // PERBAIKAN: Menambahkan Filter untuk membuang baris "Total", "Unknown", dll.
+    const summaryMetrics = useMemo(() => {
+        let totalAdSpend = 0;
+        
+        if (adsData && adsData.length > 0) {
+            adsData.forEach(row => {
+                // 1. CEK NAMA CAMPAIGN
+                // Pastikan kita skip baris yang merupakan "Total", "Results", atau "Unknown"
+                const rawName = row['campaign_name'] || row['Campaign Name'] || '';
+                const name = rawName.toString().trim().toLowerCase();
+
+                // Daftar kata kunci baris rekap yang harus diabaikan
+                const ignoredNames = ['total', 'results', 'summary', 'unknown', ''];
+                
+                if (ignoredNames.includes(name)) {
+                    return; // SKIP baris ini, jangan dihitung
+                }
+
+                // 2. Hitung Spend jika baris valid
+                const spend = parseFloat(row['amount_spent_idr'] || row['amount_spent'] || 0);
+                if (!isNaN(spend)) totalAdSpend += spend;
+            });
+        }
+
+        // 3. Hitung Metrik Turunan (Rumus Bisnis)
+        const realNetProfit = totalGrossProfit - totalAdSpend; // Laba Bersih - Iklan
+        const roas = totalAdSpend > 0 ? totalConfirmedRevenue / totalAdSpend : 0; // Return on Ad Spend
+        const cpr = totalConfirmedOrders > 0 ? totalAdSpend / totalConfirmedOrders : 0; // Cost Per Result (per Transaksi Valid)
+        const mer = totalAdSpend > 0 ? totalConfirmedRevenue / totalAdSpend : 0; // Marketing Efficiency Ratio
+        const aov = totalConfirmedOrders > 0 ? totalConfirmedRevenue / totalConfirmedOrders : 0; // Average Order Value
+        const closingRate = rawData.length > 0 ? (totalConfirmedOrders / rawData.length) * 100 : 0;
+
+        return {
+            totalAdSpend,
+            realNetProfit,
+            roas,
+            cpr,
+            mer,
+            aov,
+            closingRate,
+            totalAllOrders: rawData.length
+        };
+    }, [adsData, totalGrossProfit, totalConfirmedRevenue, totalConfirmedOrders, rawData]);
+
+
+    // --- HELPER: JSON TO CSV ---
+    const jsonToCSV = (jsonArray) => {
+        if (!jsonArray || jsonArray.length === 0) return "";
+        const allHeaders = new Set();
+        jsonArray.forEach(row => {
+            if (row && typeof row === 'object') {
+                Object.keys(row).forEach(key => allHeaders.add(key));
+            }
+        });
+        const sortedHeaders = Array.from(allHeaders).sort((a, b) => {
+            const priority = ['order_id', 'confirmed_time', 'order_status', 'customer_type', 'name', 'phone', 'net_revenue'];
+            const idxA = priority.indexOf(a);
+            const idxB = priority.indexOf(b);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return a.localeCompare(b);
+        });
+        const csvRows = [sortedHeaders.join(',')];
+        for (const row of jsonArray) {
+            const values = sortedHeaders.map(header => {
+                const val = row[header] === null || row[header] === undefined ? '' : String(row[header]);
+                const cleanVal = val.replace(/"/g, '""').replace(/\n|\r/g, ' '); 
+                return `"${cleanVal}"`;
+            });
+            csvRows.push(values.join(','));
+        }
+        return csvRows.join('\n');
+    };
+
+    // 3. LOGIC: LOAD DATA
     useEffect(() => {
-        const fetchDataFromFirestore = async () => {
+        const loadData = async () => {
             if (user && user.id) {
                 setIsLoadingFirestore(true);
                 try {
                     const docRef = doc(db, "user_datasets", user.id);
                     const docSnap = await getDoc(docRef);
-
                     if (docSnap.exists()) {
                         const data = docSnap.data();
-                        if (data.salesData) setRawData(data.salesData);
-                        if (data.adsData) setAdsData(data.adsData);
+                        if (data.salesDataUrl) {
+                            const res = await fetch(`${data.salesDataUrl}?t=${new Date().getTime()}`);
+                            if (res.ok) {
+                                const textData = await res.text();
+                                if (textData.trim().startsWith('[') || textData.trim().startsWith('{')) {
+                                    setRawData(JSON.parse(textData));
+                                } else {
+                                    const { data: parsed } = parseCSV(textData);
+                                    setRawData(parsed);
+                                }
+                            }
+                        }
+                        if (data.adsDataUrl) {
+                            const res = await fetch(`${data.adsDataUrl}?t=${new Date().getTime()}`);
+                            if (res.ok) {
+                                const textData = await res.text();
+                                if (textData.trim().startsWith('[') || textData.trim().startsWith('{')) {
+                                    setAdsData(JSON.parse(textData));
+                                } else {
+                                    const { data: parsed } = parseCSV(textData);
+                                    setAdsData(parsed);
+                                }
+                            }
+                        }
                     }
-                } catch (error) {
-                    console.error("Gagal memuat data:", error);
-                } finally {
-                    setIsLoadingFirestore(false);
-                }
+                } catch (error) { console.error("Error loading data:", error); } 
+                finally { setIsLoadingFirestore(false); }
             }
         };
-        fetchDataFromFirestore();
+        loadData();
     }, [user]);
 
-    const { utmChartAnalysis, utmSourceAnalysis, provinceAnalysis, uniqueCustomerList, geoRevenueChart, productVariantAnalysis, top3Products, customerSegmentationData, totalConfirmedRevenue, totalConfirmedOrders, timeAnalysis, rawTimeData, paymentMethodAnalysis, customerTypeAnalysis, financialEntityAnalysis, courierAnalysis, heatmapData, heatmapMaxRevenue, confirmedOrders, totalGrossProfit, dailyTrendAnalysis, topLocationLists } = useProcessedData(rawData);
+    // 4. LOGIC: UPLOAD
+    const uploadToSupabase = async (userId, dataArray, fileName) => {
+        const csvString = jsonToCSV(dataArray); 
+        const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+        const filePath = `${userId}/${fileName}.csv`;
+        const { error: uploadError } = await supabase.storage.from('user-datasets').upload(filePath, blob, { upsert: true, contentType: 'text/csv' });
+        if (uploadError) throw uploadError;
+        const { data: urlData } = supabase.storage.from('user-datasets').getPublicUrl(filePath);
+        return urlData.publicUrl;
+    };
 
-    // ... (Perhitungan metrics tetap sama) ...
-    const totalGrossRevenue = useMemo(() => {
-        if (!confirmedOrders) return 0;
-        return confirmedOrders.reduce((sum, item) => sum + (item[COL_GROSS_REVENUE] || 0), 0);
-    }, [confirmedOrders]);
-
-    const adsMetrics = useMemo(() => {
-        if (!adsData || adsData.length === 0) return null;
-        let totalSpend = 0; let totalImpressions = 0; let totalClicks = 0; let totalPurchases = 0; let totalRevenue = 0;
-        adsData.forEach(row => {
-            const name = row[ADS_CAMPAIGN_NAME] || row['campaign_name'];
-            if (!name || name === 'Total' || name === 'Results' || name === 'Summary') return;
-            const spend = (row[ADS_AMOUNT_SPENT] || row['amount_spent'] || row['amount_spent__idr'] || 0);
-            totalSpend += spend;
-            totalImpressions += (row[ADS_IMPRESSIONS] || 0);
-            totalClicks += (row[ADS_LINK_CLICKS] || 0);
-            totalPurchases += (row[ADS_PURCHASES] || row[ADS_WEBSITE_PURCHASES] || 0);
-            totalRevenue += (row[ADS_CONVERSION_VALUE] || 0);
-        });
-        const roas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
-        const cpr = totalPurchases > 0 ? totalSpend / totalPurchases : 0;
-        return { totalSpend, totalImpressions, totalClicks, totalPurchases, totalRevenue, roas, cpr };
-    }, [adsData]);
-
-    const totalAllOrders = rawData.length;
-    const totalUniqueCustomers = customerSegmentationData.length;
-    const averageOrderValue = useMemo(() => totalConfirmedOrders > 0 ? totalConfirmedRevenue / totalConfirmedOrders : 0, [totalConfirmedRevenue, totalConfirmedOrders]);
-    const closingRateSummary = useMemo(() => totalAllOrders > 0 ? ((totalConfirmedOrders / totalAllOrders) * 100).toFixed(2) : 0, [totalConfirmedOrders, totalAllOrders]);
-    const realNetProfit = useMemo(() => { const adSpend = adsMetrics ? adsMetrics.totalSpend : 0; return totalGrossProfit - adSpend; }, [totalGrossProfit, adsMetrics]);
-    const marketingEfficiencyRatio = useMemo(() => { const adSpend = adsMetrics ? adsMetrics.totalSpend : 0; if (adSpend === 0) return 0; return totalConfirmedRevenue / adSpend; }, [totalConfirmedRevenue, adsMetrics]);
-
-    // 2. SAVE DATA KE FIREBASE SAAT UPLOAD
     const handleFileUpload = async (event) => {
         setUploadError(null);
         const files = Array.from(event.target.files);
         if (files.length === 0) return;
-        
+        setFileNameDisplay(files.length > 1 ? `${files.length} files selected` : files[0].name);
         setIsUploading(true);
+
         const readFileAsText = (file) => new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => { const { data } = parseCSV(e.target.result); resolve(data); };
@@ -3883,302 +3969,297 @@ function DashboardCRM() {
         try {
             const allFilesData = await Promise.all(files.map(file => readFileAsText(file)));
             const combinedNewData = allFilesData.flat();
-            
             if (combinedNewData.length === 0) { 
                 setUploadError('File kosong atau format salah.'); 
             } else {
                 if (uploadType === 'sales') {
                     let updatedData;
-                    if (uploadMode === 'replace') { updatedData = combinedNewData; } else {
-                        const existingOrderIds = new Set(rawData.map(item => item[COL_ORDER_ID]).filter(id => id));
-                        const uniqueNewData = combinedNewData.filter(item => !item[COL_ORDER_ID] || !existingOrderIds.has(item[COL_ORDER_ID]));
-                        updatedData = [...rawData, ...uniqueNewData];
+                    if (uploadMode === 'replace') { updatedData = combinedNewData; } 
+                    else {
+                        const existingIds = new Set(rawData.map(i => i[COL_ORDER_ID]).filter(id => id));
+                        const unique = combinedNewData.filter(i => !existingIds.has(i[COL_ORDER_ID]));
+                        updatedData = [...rawData, ...unique];
                     }
                     setRawData(updatedData);
-                    
-                    // SAVE KE FIRESTORE
                     if (user && user.id) {
-                        await setDoc(doc(db, "user_datasets", user.id), { salesData: updatedData }, { merge: true });
+                        const url = await uploadToSupabase(user.id, updatedData, 'sales_data');
+                        await setDoc(doc(db, "user_datasets", user.id), { salesDataUrl: url, lastUpdated: new Date() }, { merge: true });
                     }
-                    setView('summary');
                 } else {
-                    let updatedAdsData;
-                    if (uploadMode === 'replace') { updatedAdsData = combinedNewData; } else { updatedAdsData = [...adsData, ...combinedNewData]; }
-                    setAdsData(updatedAdsData);
-
-                    // SAVE KE FIRESTORE
+                    let updatedAds;
+                    if (uploadMode === 'replace') { updatedAds = combinedNewData; } else { updatedAds = [...adsData, ...combinedNewData]; }
+                    setAdsData(updatedAds);
                     if (user && user.id) {
-                        await setDoc(doc(db, "user_datasets", user.id), { adsData: updatedAdsData }, { merge: true });
+                        const url = await uploadToSupabase(user.id, updatedAds, 'ads_data');
+                        await setDoc(doc(db, "user_datasets", user.id), { adsDataUrl: url, lastUpdated: new Date() }, { merge: true });
                     }
-                    setView('summary'); 
                 }
                 setShowUploadModal(false); 
                 event.target.value = null;
+                setView('summary');
             }
-        } catch (errorFileName) { 
-            setUploadError(`Gagal membaca file: ${errorFileName}`); 
+        } catch (error) { 
+            console.error(error);
+            setUploadError(`Gagal upload: ${error.message || error}`); 
         } finally { 
             setIsUploading(false); 
         }
     };
-    
-    // 3. HAPUS DATA DARI FIREBASE
-    const clearAllData = async () => { 
-        setRawData([]); setAdsData([]); setView('summary'); 
-        if (user && user.id) {
-            try {
-                await setDoc(doc(db, "user_datasets", user.id), { salesData: [], adsData: [] });
-                alert("Data berhasil dihapus permanen dari Database.");
-            } catch (e) { console.error("Error clearing DB:", e); }
+
+    const handleDeleteData = async () => {
+        if(window.confirm("Apakah Anda yakin ingin menghapus SEMUA data?")) {
+            setRawData([]); setAdsData([]); setShowUploadModal(false);
         }
-    };
+    }
 
-    const UploadModal = ({ show, onClose, currentMode, setMode, onFileUpload, isUploading, uploadError, onClearData, currentType, setType }) => {
-        if (!show) return null;
-        return (
-            <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex justify-center items-center z-50 p-4">
-                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 transform transition-all">
-                    <h3 className="text-2xl font-bold text-indigo-700 mb-4 flex items-center"><Upload className="w-6 h-6 mr-2" /> Unggah Data CSV</h3>
-                    <div className="mb-6">
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Jenis File Data:</label>
-                        <div className="flex gap-4">
-                             <label className={`flex-1 p-3 border rounded-lg cursor-pointer text-center transition-all ${currentType === 'sales' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'hover:bg-gray-50'}`}>
-                                <input type="radio" name="uploadType" value="sales" checked={currentType === 'sales'} onChange={() => setType('sales')} className="hidden" />
-                                <ShoppingBag className="w-6 h-6 mx-auto mb-1" />
-                                <span className="text-xs font-bold">Data Penjualan (CRM/Order)</span>
-                            </label>
-                            <label className={`flex-1 p-3 border rounded-lg cursor-pointer text-center transition-all ${currentType === 'ads' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'hover:bg-gray-50'}`}>
-                                <input type="radio" name="uploadType" value="ads" checked={currentType === 'ads'} onChange={() => setType('ads')} className="hidden" />
-                                <Megaphone className="w-6 h-6 mx-auto mb-1" />
-                                <span className="text-xs font-bold">Data Iklan (Meta Ads)</span>
-                            </label>
-                        </div>
-                    </div>
-                    <div className="space-y-4 mb-6">
-                        <p className="text-xs text-gray-500 font-bold uppercase mb-1">Mode Upload:</p>
-                        <label className="flex items-center p-3 border rounded-lg cursor-pointer transition-all hover:bg-indigo-50/50" onClick={() => setMode('merge')}>
-                            <input type="radio" name="uploadMode" value="merge" checked={currentMode === 'merge'} onChange={() => setMode('merge')} className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" />
-                            <div className="ml-3"><span className="block text-sm font-medium text-gray-900 flex items-center"><PlusCircle className="w-4 h-4 mr-1 text-green-600" /> Gabungkan Data Baru</span><span className="text-xs text-gray-500">Tambahkan ke data yang sudah ada.</span></div>
-                        </label>
-                        <label className="flex items-center p-3 border rounded-lg cursor-pointer transition-all hover:bg-indigo-50/50" onClick={() => setMode('replace')}>
-                            <input type="radio" name="uploadMode" value="replace" checked={currentMode === 'replace'} onChange={() => setMode('replace')} className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500" />
-                            <div className="ml-3"><span className="block text-sm font-medium text-gray-900 flex items-center"><Trash2 className="w-4 h-4 mr-1 text-red-600" /> Ganti Semua Data Lama</span><span className="text-xs text-gray-500">Hapus data lama & ganti baru.</span></div>
-                        </label>
-                    </div>
-                    {uploadError && (<div className="p-3 mb-4 bg-red-100 text-red-800 rounded-lg text-sm font-medium flex items-center"><AlertTriangle className="w-5 h-5 mr-2" />{uploadError}</div>)}
-                    <div className="flex flex-col space-y-3"><input type="file" id="csv-upload-input" accept=".csv" multiple onChange={onFileUpload} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" disabled={isUploading} /><button onClick={onClose} className="w-full py-2 text-sm font-semibold rounded-lg text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors" disabled={isUploading}>Batal</button></div>
-                    <div className="mt-6 border-t pt-4"><button onClick={() => { if (window.confirm("Apakah Anda yakin ingin menghapus SEMUA data saat ini? Tindakan ini tidak dapat dibatalkan.")) { onClearData(); onClose(); } }} className="w-full py-2 text-xs font-semibold rounded-lg text-red-700 bg-red-100 hover:bg-red-200 transition-colors flex items-center justify-center" disabled={isUploading}><Trash2 className="w-4 h-4 mr-2" /> Hapus SEMUA Data</button></div>
-                </div>
-            </div>
-        );
-    };
+    // Hitung data chart trend untuk summary
+    const summaryTrendData = useMemo(() => dailyTrendAnalysis, [dailyTrendAnalysis]);
 
+    // 6. RENDER VIEW
     const renderContent = () => {
-        if (view === 'tutorial') return <TutorialView />;
-        
-        // LOADING SCREEN
-        if (isLoadingFirestore) {
-            return (
-                <div className="flex flex-col items-center justify-center h-full min-h-[400px]">
-                    <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-gray-500 font-medium">Sedang memuat data Anda...</p>
-                </div>
-            );
-        }
+        if (isLoadingFirestore) return <div className="flex h-full items-center justify-center"><RefreshCw className="animate-spin w-8 h-8 text-indigo-600" /></div>;
 
-        const isDataEmpty = rawData.length === 0 && adsData.length === 0;
-        if (isDataEmpty) { return (<div className={`p-10 text-center rounded-xl shadow-md border-2 bg-yellow-50 border-yellow-300`}><AlertTriangle className={`w-12 h-12 mx-auto text-yellow-500`} /><h3 className="text-xl font-bold mt-4">Data Kosong</h3><p className="text-gray-600 mt-2">Belum ada data tersimpan. Silakan klik tombol **'Unggah/Kelola Data'** di kanan atas.</p></div>); }
-        
         switch (view) {
+            case 'segmentation': return <CustomerSegmentationView data={customerSegmentationData} />;
+            case 'marketing': return <MarketingAnalysisView adsData={adsData} />;
+            case 'report': return <DailyReportView confirmedOrders={processedData.confirmedOrders} customerSegmentationData={customerSegmentationData} rawData={rawData} adsData={adsData} setView={setView} />;
+            case 'recovery': return <RecoveryAnalysisView rawData={rawData} />;
+            case 'products': return <ProductAnalysisView productData={productVariantAnalysis} />;
+            case 'time': return <TimeAnalysisView rawTimeData={rawTimeData} />;
+            case 'heatmap': return <HeatmapAnalysisView heatmapData={heatmapData} maxRevenue={heatmapMaxRevenue} />;
+            case 'tutorial': return <TutorialView />;
             case 'summary':
+            default:
                 return (
-                    <div className="space-y-8 animate-fade-in">
-                        {adsMetrics ? (
-                            <div className="space-y-6">
-                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
-                                        <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2"><DollarSign className="w-4 h-4 mr-2 text-green-600" />Kesehatan Bisnis (Financial Health)</h3>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <StatCard compact title="Total Pendapatan (Sales)" value={formatRupiah(totalConfirmedRevenue)} icon={TrendingUp} color="#4F46E5" />
-                                            <StatCard compact title="Est. Net Profit (Laba)" value={formatRupiah(totalGrossProfit)} icon={Coins} color="#10B981" />
-                                            <StatCard compact title="Total Ad Spend (Iklan)" value={formatRupiah(adsMetrics.totalSpend)} icon={Wallet} color="#EF4444" />
-                                            <StatCard compact title="Real Net Profit (Est)" value={formatRupiah(realNetProfit)} icon={Coins} color={realNetProfit > 0 ? "#10B981" : "#EF4444"} />
-                                        </div>
-                                    </div>
-                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
-                                        <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2"><Activity className="w-4 h-4 mr-2 text-blue-600" />Efisiensi Marketing & Operasional</h3>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <StatCard compact title="ROAS (Iklan)" value={adsMetrics.roas.toFixed(2) + "x"} icon={Award} color={adsMetrics.roas > 4 ? "#10B981" : adsMetrics.roas > 2 ? "#F59E0B" : "#EF4444"} />
-                                            <StatCard compact title="Marketing Efficiency (MER)" value={marketingEfficiencyRatio.toFixed(2) + "x"} icon={Percent} color="#8B5CF6" />
-                                            <StatCard compact title="CPR (Cost Per Result)" value={formatRupiah(adsMetrics.cpr)} icon={Target} color="#F59E0B" />
-                                            <StatCard compact title="AOV (Rata-rata Order)" value={formatRupiah(averageOrderValue)} icon={ShoppingBag} color="#06b6d4" />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
-                                    <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2"><ShoppingBag className="w-4 h-4 mr-2 text-purple-600" />Volume Transaksi & Skala Operasional</h3>
-                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                                        <StatCard compact title="Total Semua Pesanan" value={totalAllOrders} icon={ShoppingBag} color="#6366f1" unit="Order" description="Termasuk Pending, Batal & RTS" />
-                                        <StatCard compact title="Total Transaksi (Confirmed)" value={totalConfirmedOrders} icon={CheckCircle} color="#8b5cf6" unit="Trx" />
-                                        <StatCard compact title="Closing Rate (Konversi CS)" value={closingRateSummary + "%"} icon={LayoutDashboard} color="#EC4899" unit="(Trx/Order)" />
-                                        <StatCard compact title="Total Pelanggan Unik" value={totalUniqueCustomers} icon={Users} color="#2563EB" unit="Pelanggan" />
-                                    </div>
+                    <div className="space-y-8 animate-fade-in pb-10">
+                        {/* === BARIS 1: FINANCIAL & MARKETING (Split 2 Kolom) === */}
+                        <div className="flex flex-col xl:flex-row gap-6">
+                            
+                            {/* SECTION 1: KESEHATAN BISNIS (Kiri) */}
+                            <div className="flex-1 bg-white p-5 rounded-xl shadow-md border border-gray-100">
+                                <h3 className="text-sm font-bold text-gray-700 flex items-center mb-4">
+                                    <DollarSign className="w-4 h-4 mr-2 text-green-600" />
+                                    Kesehatan Bisnis (Financial Health)
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <StatCard compact title="Total Pendapatan (Sales)" value={formatRupiah(totalConfirmedRevenue)} icon={TrendingUp} color="#6366f1" />
+                                    <StatCard compact title="Est. Net Profit (Laba)" value={formatRupiah(totalGrossProfit)} icon={Coins} color="#10b981" />
+                                    <StatCard compact title="Total Ad Spend (Iklan)" value={formatRupiah(summaryMetrics.totalAdSpend)} icon={Wallet} color="#ef4444" />
+                                    <StatCard compact title="Real Net Profit (Est)" value={formatRupiah(summaryMetrics.realNetProfit)} icon={DollarSign} color="#10b981" />
                                 </div>
                             </div>
-                        ) : (
-                            <div className="space-y-6">
-                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
-                                        <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2"><DollarSign className="w-4 h-4 mr-2 text-green-600" />Kesehatan Bisnis (Financial Health)</h3>
-                                        <div className="grid grid-cols-2 gap-3">
-                                             <StatCard compact title="Total Gross Revenue" value={formatRupiah(totalGrossRevenue)} icon={Wallet} color="#8b5cf6" />
-                                             <StatCard compact title="Total Net Revenue" value={formatRupiah(totalConfirmedRevenue)} icon={TrendingUp} color="#4F46E5" />
-                                             <StatCard compact title="Est. Net Profit (Laba)" value={formatRupiah(totalGrossProfit)} icon={Coins} color="#10B981" />
-                                             <StatCard compact title="AOV (Rata-rata Order)" value={formatRupiah(averageOrderValue)} icon={DollarSign} color="#F59E0B" />
-                                        </div>
-                                    </div>
-                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
-                                        <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2"><ShoppingBag className="w-4 h-4 mr-2 text-purple-600" />Volume Transaksi & Operasional</h3>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <StatCard compact title="Total Semua Pesanan" value={totalAllOrders} icon={ShoppingBag} color="#6366f1" unit="Order" />
-                                            <StatCard compact title="Total Transaksi (Valid)" value={totalConfirmedOrders} icon={CheckCircle} color="#8b5cf6" unit="Trx" />
-                                            <StatCard compact title="Closing Rate" value={closingRateSummary + "%"} icon={Target} color="#EC4899" unit="Conv" />
-                                            <StatCard compact title="Pelanggan Unik" value={totalUniqueCustomers} icon={Users} color="#2563EB" unit="Org" />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="col-span-full bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg">
-                                    <div className="flex">
-                                        <div className="flex-shrink-0"><Info className="h-5 w-5 text-blue-400" /></div>
-                                        <div className="ml-3"><p className="text-sm text-blue-700">Tips: Unggah data <strong>Meta Ads (CSV)</strong> Anda untuk melihat analisis profitabilitas lengkap (ROAS, Real Net Profit, MER) di sini.</p></div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><TrendingUp className="w-5 h-5 mr-2 text-blue-600" />Tren Pendapatan & Transaksi (Akumulasi Harian)</h3>
-                                <div className="h-80 w-full"><ResponsiveContainer width="100%" height="100%"><ComposedChart data={dailyTrendAnalysis} margin={{top: 10, right: 30, left: 0, bottom: 0}}><defs><linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4F46E5" stopOpacity={0.1}/><stop offset="95%" stopColor="#4F46E5" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" /><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fontSize: 10}} /><YAxis yAxisId="left" orientation="left" axisLine={false} tickLine={false} tickFormatter={(val) => (val/1000000).toFixed(0) + 'jt'} tick={{fontSize: 10}} /><YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{fontSize: 10}} /><Tooltip formatter={(value, name) => [name === 'Revenue' ? formatRupiah(value) : value, name]} /><Legend wrapperStyle={{fontSize: '12px'}} /><Area yAxisId="left" type="monotone" dataKey="revenue" name="Revenue" stroke="#4F46E5" fillOpacity={1} fill="url(#colorRev)" /><Line yAxisId="right" type="monotone" dataKey="transactions" name="Order" stroke="#F59E0B" dot={false} strokeWidth={2} /></ComposedChart></ResponsiveContainer></div>
-                            </div>
-                            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col h-full">
-                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Award className="w-5 h-5 mr-2 text-yellow-500" />Top 5 Produk Terlaris</h3>
-                                <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                                    {productVariantAnalysis.length === 0 ? <p className="text-sm text-gray-400 italic">Data produk tidak tersedia</p> : productVariantAnalysis.slice(0, 5).map((prod, idx) => (<div key={idx} className="mb-4 last:mb-0"><div className="flex justify-between text-xs mb-1"><span className="font-semibold text-gray-700 truncate w-3/4" title={prod.name}>{idx+1}. {prod.name}</span><span className="font-bold text-indigo-600">{prod.totalQuantity.toLocaleString()}</span></div><div className="w-full bg-gray-100 rounded-full h-2"><div className="bg-gradient-to-r from-yellow-400 to-orange-500 h-2 rounded-full" style={{ width: `${(prod.totalQuantity / productVariantAnalysis[0].totalQuantity) * 100}%` }}></div></div><p className="text-[10px] text-gray-500 mt-1 text-right">Revenue: <span className="font-bold text-green-600">{formatRupiah(prod.totalRevenue)}</span></p></div>))}
+
+                            {/* SECTION 2: EFISIENSI MARKETING (Kanan) */}
+                            <div className="flex-1 bg-white p-5 rounded-xl shadow-md border border-gray-100">
+                                <h3 className="text-sm font-bold text-gray-700 flex items-center mb-4">
+                                    <Activity className="w-4 h-4 mr-2 text-blue-600" />
+                                    Efisiensi Marketing & Operasional
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <StatCard compact title="ROAS (Iklan)" value={summaryMetrics.roas.toFixed(2) + "x"} icon={Award} color="#f59e0b" />
+                                    <StatCard compact title="Marketing Efficiency (MER)" value={summaryMetrics.mer.toFixed(2) + "x"} icon={Percent} color="#8b5cf6" />
+                                    <StatCard compact title="CPR (Cost Per Result)" value={formatRupiah(summaryMetrics.cpr)} icon={Target} color="#f59e0b" />
+                                    <StatCard compact title="AOV (Rata-rata Order)" value={formatRupiah(summaryMetrics.aov)} icon={ShoppingBag} color="#06b6d4" />
                                 </div>
                             </div>
                         </div>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-                            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><CreditCard className="w-5 h-5 mr-2 text-blue-600" />Metode Pembayaran (All Time)</h3>
-                                <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={paymentMethodAnalysis} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="count">{paymentMethodAnalysis.map((entry, index) => (<Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />))}</Pie><Tooltip formatter={(val) => `${val} Order`} /><Legend layout="vertical" verticalAlign="bottom" align="center" wrapperStyle={{fontSize: '11px'}} /></PieChart></ResponsiveContainer></div>
+
+                        {/* === BARIS 2: VOLUME TRANSAKSI (Full Width) === */}
+                        <div className="bg-white p-5 rounded-xl shadow-md border border-gray-100">
+                            <h3 className="text-sm font-bold text-gray-700 flex items-center mb-4">
+                                <ShoppingBag className="w-4 h-4 mr-2 text-purple-600" />
+                                Volume Transaksi & Skala Operasional
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <StatCard compact title="Total Semua Pesanan" value={summaryMetrics.totalAllOrders} unit="Order" icon={ShoppingBag} color="#6366f1" description="Termasuk Pending, Batal & RTS" />
+                                <StatCard compact title="Total Transaksi (Confirmed)" value={totalConfirmedOrders} unit="Trx" icon={CheckCircle} color="#8b5cf6" />
+                                <StatCard compact title="Closing Rate (Konversi CS)" value={summaryMetrics.closingRate.toFixed(2) + "%"} unit="(Trx/Order)" icon={Grid3X3} color="#ec4899" />
+                                <StatCard compact title="Total Pelanggan Unik" value={customerSegmentationData.length} unit="Pelanggan" icon={Users} color="#3b82f6" />
                             </div>
-                            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><UserCheck className="w-5 h-5 mr-2 text-green-600" />Tipe Pelanggan (New vs Repeat)</h3>
-                                <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={customerTypeAnalysis} cx="50%" cy="50%" outerRadius={80} dataKey="count" label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}>{customerTypeAnalysis.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.name.includes('NEW') || entry.name.includes('BARU') ? '#3B82F6' : '#10B981'} />))}</Pie><Tooltip formatter={(val) => `${val} Orang`} /><Legend verticalAlign="bottom" height={36}/></PieChart></ResponsiveContainer></div>
-                                <p className="text-center text-[10px] text-gray-400 mt-2">Komposisi pelanggan berdasarkan riwayat pembelian</p>
+                        </div>
+
+                        {/* === BARIS 3: CHART TREND === */}
+                        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                                <Activity className="w-5 h-5 mr-2 text-indigo-600" />
+                                Tren Pendapatan Harian (30 Hari Terakhir)
+                            </h3>
+                            <div className="h-72 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={summaryTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                                        <defs>
+                                            <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#2563eb" stopOpacity={0.8}/>
+                                                <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                                        <XAxis dataKey="day" tick={{ fontSize: 10 }} interval={2} />
+                                        <YAxis tickFormatter={(val) => (val/1000000).toFixed(0) + 'jt'} tick={{ fontSize: 10 }} />
+                                        <Tooltip formatter={(value) => formatRupiah(value)} />
+                                        <Area type="monotone" dataKey="revenue" stroke="#2563eb" fillOpacity={1} fill="url(#colorRev)" />
+                                    </AreaChart>
+                                </ResponsiveContainer>
                             </div>
                         </div>
                     </div>
                 );
-            case 'marketing': return <MarketingAnalysisView adsData={adsData} />;
-            case 'daily_report': return <DailyReportView confirmedOrders={confirmedOrders} customerSegmentationData={customerSegmentationData} rawData={rawData} adsData={adsData} setView={setView} />;
-            case 'recovery': return <RecoveryAnalysisView rawData={rawData} />;
-            case 'segmentation': return <CustomerSegmentationView data={customerSegmentationData} />;
-            case 'utm': return <div className="bg-white p-6 rounded-xl shadow-lg"><h3 className="text-xl font-semibold mb-6 text-gray-800">Analisis Sumber Iklan (Sales Data)</h3><div className="overflow-x-auto"><table className="min-w-full divide-y divide-gray-200"><thead className="bg-gray-50"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sumber Iklan</th><th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Pesanan</th><th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Pelanggan Unik</th><th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Selesai (%)</th></tr></thead><tbody className="bg-white divide-y divide-gray-200">{utmSourceAnalysis.map((source, index) => (<tr key={index} className="hover:bg-indigo-50/50 transition-colors"><td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 capitalize truncate max-w-[200px]" title={source.name}>{source.name}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-indigo-600">{source.totalOrders.toLocaleString()}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700">{source.uniqueCustomers.toLocaleString()}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold"><span className={`inline-flex items-center px-3 py-0.5 rounded-full text-xs font-medium ${source.confirmedPercentage > 70 ? 'bg-green-100 text-green-800' : source.confirmedPercentage > 40 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>{source.confirmedPercentage.toFixed(1)}%</span></td></tr>))}</tbody></table></div></div>;
-            case 'geo': 
-                const maxRevenue = provinceAnalysis.length > 0 ? provinceAnalysis[0].totalRevenue : 1; 
-                return <div className="bg-white p-6 rounded-xl shadow-lg"><h3 className="text-xl font-semibold mb-6 text-gray-800">Analisis Pendapatan Berdasarkan Provinsi</h3><div className="space-y-6">{provinceAnalysis.map((province, index) => { const totalRevenue = province.totalRevenue; const confirmedRevenue = province.confirmedRevenue; const relativeWidth = maxRevenue > 0 ? (totalRevenue / maxRevenue) * 100 : 0; const confirmedPct = totalRevenue > 0 ? (confirmedRevenue / totalRevenue) * 100 : 0; const failedRevenue = province.failedRevenue; return (<div key={index} className="border-b border-gray-100 pb-3"><div className="flex justify-between items-center mb-1"><span className="text-sm font-bold text-gray-900 truncate max-w-[200px]" title={province.name}>{province.name}</span><span className="text-lg font-extrabold text-indigo-600">{formatRupiah(totalRevenue)}</span></div><div className="w-full bg-red-500 rounded-full h-4 relative overflow-hidden" style={{ maxWidth: `${relativeWidth}%`, minWidth: '50px' }}><div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${confirmedPct}%` }} title={`Selesai: ${formatRupiah(confirmedRevenue)} (${confirmedPct.toFixed(0)}%)`}></div></div><div className="flex justify-between text-xs mt-2 text-gray-600 flex-wrap gap-2"><div className="flex items-center space-x-2"><div className="w-3 h-3 bg-green-500 rounded-full"></div><span>Selesai: {formatRupiah(confirmedRevenue)} ({confirmedPct.toFixed(0)}%)</span></div><div className="flex items-center space-x-2"><div className="w-3 h-3 bg-red-500 rounded-full"></div><span>Gagal: {formatRupiah(failedRevenue)} ({(100 - confirmedPct).toFixed(0)}%)</span></div></div></div>);})}</div></div>;
-            case 'product': return <ProductAnalysisView productData={productVariantAnalysis} />;
-            case 'time': return <TimeAnalysisView rawTimeData={rawTimeData} />;
-            case 'heatmap': return <HeatmapAnalysisView heatmapData={heatmapData} maxRevenue={heatmapMaxRevenue} />;
-            case 'tutorial': return <TutorialView />;
-            default: return null;
         }
     };
-    
+
     return (
-        <div className="h-screen bg-gray-50 font-sans flex flex-col overflow-hidden">
-            <header className="p-4 sm:p-8 bg-white shadow-lg flex justify-between items-center flex-wrap gap-4 flex-shrink-0 z-30 relative">
-                <div><div className="flex items-center mb-1"><AppLogo /></div><p className="text-gray-500 mt-1 text-sm">Dasbor Analisis Data Penjualan & Marketing Anda</p></div>
-                <button onClick={() => setShowUploadModal(true)} className="flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg shadow-md transition-colors bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer" disabled={isUploading}><Upload className="w-5 h-5 mr-2" />Unggah/Kelola Data</button>
-            </header>
-            <div className="flex flex-1 overflow-hidden relative">
-                <nav className="hidden lg:block w-64 flex-shrink-0 p-4 bg-white shadow-2xl overflow-y-auto z-20">
-                    <h3 className="text-xs font-semibold uppercase text-gray-500 mb-4 mt-1 px-4">Menu Utama</h3>
-                    <div className="flex flex-col space-y-3">
-                        <NavButton id="summary" name="Ringkasan Utama" view={view} setView={setView} icon={LayoutDashboard} />
-                        <NavButton id="marketing" name="Analisis Marketing (Ads)" view={view} setView={setView} icon={Megaphone} />
-                        <NavButton id="daily_report" name="Laporan Harian & Detail" view={view} setView={setView} icon={FileText} />
-                        <NavButton id="recovery" name="Recovery & Isu Order" view={view} setView={setView} icon={AlertTriangle} />
-                        <NavButton id="segmentation" name="Segmen Pelanggan (RFM)" view={view} setView={setView} icon={Layers} />
-                        <NavButton id="product" name="Analisis Produk & Varian" view={view} setView={setView} icon={Boxes} />
-                        <NavButton id="utm" name="Analisis Sumber Iklan" view={view} setView={setView} icon={TrendingUp} />
-                        <NavButton id="geo" name="Peta Penjualan (Geografis)" view={view} setView={setView} icon={MapPin} />
-                        <NavButton id="heatmap" name="Heatmap Waktu" view={view} setView={setView} icon={Grid3X3} />
-                        <NavButton id="time" name="Analisis Tren Waktu" view={view} setView={setView} icon={History} />
-                        <div className="border-t border-gray-100 my-2 pt-2"></div>
-                        <NavButton id="tutorial" name="Panduan & Bantuan" view={view} setView={setView} icon={BookOpen} />
-                    </div>
+        <div className="flex h-screen overflow-hidden bg-gray-50">
+            {/* Sidebar */}
+            <aside className="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col z-10">
+                <div className="p-6 border-b border-gray-100"><AppLogo /></div>
+                <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+                    <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-2">Overview</p>
+                    <NavButton id="summary" name="Ringkasan Utama" view={view} setView={setView} icon={LayoutDashboard} />
+                    <NavButton id="report" name="Laporan Harian" view={view} setView={setView} icon={List} />
+                    
+                    <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-6">Analisis</p>
+                    <NavButton id="marketing" name="Analisis Marketing" view={view} setView={setView} icon={Megaphone} />
+                    <NavButton id="segmentation" name="Segmen Pelanggan" view={view} setView={setView} icon={Users} />
+                    <NavButton id="products" name="Analisis Produk" view={view} setView={setView} icon={Boxes} />
+                    <NavButton id="time" name="Tren Waktu" view={view} setView={setView} icon={History} />
+                    <NavButton id="heatmap" name="Heatmap Jam" view={view} setView={setView} icon={Grid3X3} />
+                    
+                    <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-6">Action</p>
+                    <NavButton id="recovery" name="Recovery & Isu" view={view} setView={setView} icon={AlertTriangle} />
+                    <NavButton id="tutorial" name="Panduan / Tutorial" view={view} setView={setView} icon={BookOpen} />
                 </nav>
-                <div className="flex-1 overflow-y-auto p-4 sm:p-8 relative z-10">
-                    <nav className="mb-6 lg:hidden overflow-x-auto whitespace-nowrap"><div className="flex space-x-3 p-1"><NavButton id="summary" name="Ringkasan Utama" view={view} setView={setView} icon={LayoutDashboard} /><NavButton id="marketing" name="Analisis Ads" view={view} setView={setView} icon={Megaphone} /><NavButton id="daily_report" name="Laporan Harian & Detail" view={view} setView={setView} icon={FileText} /><NavButton id="recovery" name="Recovery & Isu" view={view} setView={setView} icon={AlertTriangle} /><NavButton id="segmentation" name="Segmen Pelanggan (RFM)" view={view} setView={setView} icon={Layers} /><NavButton id="product" name="Analisis Produk & Varian" view={view} setView={setView} icon={Boxes} /><NavButton id="utm" name="Analisis Sumber Iklan" view={view} setView={setView} icon={TrendingUp} /><NavButton id="geo" name="Peta Penjualan (Geografis)" view={view} setView={setView} icon={MapPin} /><NavButton id="heatmap" name="Heatmap Waktu" view={view} setView={setView} icon={Grid3X3} /><NavButton id="time" name="Analisis Tren Waktu" view={view} setView={setView} icon={History} /><NavButton id="tutorial" name="Panduan" view={view} setView={setView} icon={BookOpen} /></div></nav>
-                    {uploadError && (<div className="p-4 mb-6 bg-red-100 text-red-800 rounded-lg text-sm font-medium flex items-center shadow-md"><AlertTriangle className="w-5 h-5 mr-2" />{uploadError}</div>)}
-                    <main className="transition-all duration-300">{renderContent()}</main>
-                    <footer className="mt-12 pt-6 border-t border-gray-200 text-center text-xs text-gray-400">AI Intelligence Platform v34.1 | Total Sales Data: {totalAllOrders.toLocaleString()} | Total Ads Data: {adsData.length.toLocaleString()}</footer>
+                <div className="p-4 border-t border-gray-200">
+                    <div className="flex items-center gap-3 p-2 rounded-lg bg-gray-50">
+                        <UserButton />
+                        <div className="flex flex-col"><span className="text-xs font-bold text-gray-700">{user?.fullName || 'User'}</span><span className="text-[10px] text-gray-500">Free Plan</span></div>
+                    </div>
                 </div>
+            </aside>
+
+            {/* Mobile Sidebar Overlay */}
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                <header className="bg-white border-b border-gray-200 py-3 px-6 flex items-center justify-between shadow-sm z-20">
+                    <div className="md:hidden"><AppLogo /></div>
+                    <h2 className="hidden md:block text-lg font-bold text-gray-800 capitalize">{view.replace('_', ' ')} Dashboard</h2>
+                    <div className="flex items-center space-x-3">
+                        <button onClick={() => setShowUploadModal(true)} className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition shadow-sm text-sm font-bold">
+                            <Upload className="w-4 h-4 mr-2" /> Unggah / Kelola Data
+                        </button>
+                    </div>
+                </header>
+
+                <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-50">
+                    {renderContent()}
+                </main>
             </div>
-            <UploadModal show={showUploadModal} onClose={() => setShowUploadModal(false)} currentMode={uploadMode} setMode={setUploadMode} currentType={uploadType} setType={setUploadType} onFileUpload={handleFileUpload} isUploading={isUploading} uploadError={uploadError} onClearData={clearAllData} />
+
+            {/* MODAL UPLOAD */}
+            {showUploadModal && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-down">
+                        <div className="p-6 pb-2">
+                            <h3 className="text-xl font-bold text-indigo-700 flex items-center gap-2"><Upload className="w-6 h-6" /> Unggah Data CSV</h3>
+                        </div>
+                        <div className="p-6 pt-2 space-y-6">
+                            {/* JENIS FILE DATA */}
+                            <div>
+                                <label className="block text-sm font-bold text-gray-800 mb-2">Jenis File Data:</label>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <button onClick={() => setUploadType('sales')} className={`flex flex-col items-center justify-center p-4 rounded-lg border transition-all ${uploadType === 'sales' ? 'border-2 border-indigo-500 bg-indigo-50 text-indigo-700' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                                        <ShoppingBag className="w-6 h-6 mb-2" />
+                                        <span className="text-xs font-bold text-center">Data Penjualan (CRM/Order)</span>
+                                    </button>
+                                    <button onClick={() => setUploadType('ads')} className={`flex flex-col items-center justify-center p-4 rounded-lg border transition-all ${uploadType === 'ads' ? 'border-2 border-indigo-500 bg-indigo-50 text-indigo-700' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                                        <Megaphone className="w-6 h-6 mb-2" />
+                                        <span className="text-xs font-bold text-center">Data Iklan (Meta Ads)</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* MODE UPLOAD */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">MODE UPLOAD:</label>
+                                <div className="flex flex-col gap-3">
+                                    <div onClick={() => setUploadMode('merge')} className={`flex items-start p-3 rounded-lg border cursor-pointer transition-all ${uploadMode === 'merge' ? 'border-green-500 ring-1 ring-green-500 bg-white' : 'border-gray-200 hover:bg-gray-50'}`}>
+                                        <div className="flex items-center h-5"><input type="radio" checked={uploadMode === 'merge'} onChange={() => setUploadMode('merge')} className="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500"/></div>
+                                        <div className="ml-3"><span className="block text-sm font-bold text-gray-900 flex items-center gap-1"><PlusCircle className="w-4 h-4 text-green-600" /> Gabungkan Data Baru</span><span className="block text-xs text-gray-500">Tambahkan ke data yang sudah ada.</span></div>
+                                    </div>
+                                    <div onClick={() => setUploadMode('replace')} className={`flex items-start p-3 rounded-lg border cursor-pointer transition-all ${uploadMode === 'replace' ? 'border-red-500 ring-1 ring-red-500 bg-white' : 'border-gray-200 hover:bg-gray-50'}`}>
+                                        <div className="flex items-center h-5"><input type="radio" checked={uploadMode === 'replace'} onChange={() => setUploadMode('replace')} className="w-4 h-4 text-red-600 border-gray-300 focus:ring-red-500"/></div>
+                                        <div className="ml-3"><span className="block text-sm font-bold text-gray-900 flex items-center gap-1"><Trash2 className="w-4 h-4 text-red-600" /> Ganti Semua Data Lama</span><span className="block text-xs text-gray-500">Hapus data lama & ganti baru.</span></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* FILE ACTION */}
+                            <div>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <label className="cursor-pointer bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold py-2 px-4 rounded-lg text-sm transition-colors shadow-sm border border-indigo-100">
+                                        Choose Files
+                                        <input type="file" className="hidden" accept=".csv" multiple onChange={handleFileUpload} disabled={isUploading} />
+                                    </label>
+                                    <span className="text-sm text-gray-500 truncate max-w-[200px]">{isUploading ? "Memproses..." : fileNameDisplay}</span>
+                                </div>
+                                {uploadError && (<div className="mb-4 p-2 bg-red-50 text-red-600 text-xs rounded border border-red-200 flex items-center"><AlertTriangle className="w-4 h-4 mr-2" /> {uploadError}</div>)}
+                                <div className="space-y-3">
+                                    <button onClick={() => setShowUploadModal(false)} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-lg text-sm transition-colors">Batal</button>
+                                    <div className="border-t border-gray-100 pt-3">
+                                        <button onClick={handleDeleteData} className="w-full bg-red-100 hover:bg-red-200 text-red-700 font-bold py-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"><Trash2 className="w-4 h-4" /> Hapus SEMUA Data</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
-};
+}
 
 // --- BAGIAN INI DITAMBAHKAN DI PALING BAWAH FILE (PENGGANTI EXPORT LAMA) ---
 
 function App() {
-  return (
-    <div className="min-h-screen bg-gray-50 font-sans">
-      
-      {/* KONDISI 1: KALAU BELUM LOGIN -> TAMPILKAN TOMBOL LOGIN */}
-      <SignedOut>
-        <div className="flex flex-col items-center justify-center h-screen bg-gradient-to-br from-indigo-900 to-slate-900 text-white">
-          <div className="text-center space-y-6 p-8 bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-2xl max-w-md w-full mx-4">
-            <div className="flex justify-center mb-4">
-               {/* Ikon Gembok Sederhana */}
-               <div className="p-4 bg-indigo-600 rounded-full shadow-lg">
-                 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-lock"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-               </div>
-            </div>
-            <div>
-              <h1 className="text-3xl font-extrabold tracking-tight mb-2">CRMAuto <span className="text-indigo-400">Pro</span></h1>
-              <p className="text-gray-300 text-sm">Silakan login untuk mengakses Dashboard Intelligence.</p>
-            </div>
-            
-            <div className="pt-2">
-              <SignInButton mode="modal">
-                <button className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-indigo-500/30 flex items-center justify-center gap-2">
-                  Masuk Sekarang
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg>
-                </button>
-              </SignInButton>
-            </div>
-            <p className="text-xs text-gray-500 mt-4">Protected by Clerk Authentication</p>
-          </div>
-        </div>
-      </SignedOut>
+  return (
+    <div className="min-h-screen bg-gray-50 font-sans">
+      
+      {/* KONDISI 1: KALAU BELUM LOGIN -> TAMPILKAN TOMBOL LOGIN */}
+      <SignedOut>
+        <div className="flex flex-col items-center justify-center h-screen bg-gradient-to-br from-indigo-900 to-slate-900 text-white">
+          <div className="text-center space-y-6 p-8 bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-2xl max-w-md w-full mx-4">
+            <div className="flex justify-center mb-4">
+               {/* Ikon Gembok Sederhana */}
+               <div className="p-4 bg-indigo-600 rounded-full shadow-lg">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-lock"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+               </div>
+            </div>
+            <div>
+              <h1 className="text-3xl font-extrabold tracking-tight mb-2">CRMAuto <span className="text-indigo-400">Pro</span></h1>
+              <p className="text-gray-300 text-sm">Silakan login untuk mengakses Dashboard Intelligence.</p>
+            </div>
+            
+            <div className="pt-2">
+              <SignInButton mode="modal">
+                <button className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-indigo-500/30 flex items-center justify-center gap-2">
+                  Masuk Sekarang
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg>
+                </button>
+              </SignInButton>
+            </div>
+            <p className="text-xs text-gray-500 mt-4">Protected by Clerk Authentication</p>
+          </div>
+        </div>
+      </SignedOut>
 
-      {/* KONDISI 2: KALAU SUDAH LOGIN -> TAMPILKAN DASHBOARD */}
-      <SignedIn>
-        {/* Header Kecil untuk Logout (Opsional, karena di Dashboard sudah ada UserButton, tapi ini untuk jaga-jaga) */}
-        <div className="fixed top-4 right-4 z-50">
-           <UserButton afterSignOutUrl="/" />
-        </div>
-        
-        {/* Panggil Komponen Dashboard Aslimu */}
-        <DashboardCRM /> 
-      </SignedIn>
+      {/* KONDISI 2: KALAU SUDAH LOGIN -> TAMPILKAN DASHBOARD */}
+      <SignedIn>
+        {/* Tombol UserButton di kanan atas SUDAH DIHAPUS */}
+        
+        {/* Panggil Komponen Dashboard Aslimu */}
+        <DashboardCRM /> 
+      </SignedIn>
 
-    </div>
-  );
+    </div>
+  );
 }
 
 export default App;
