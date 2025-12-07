@@ -4,8 +4,7 @@ import { supabase } from './supabaseClient';
 import { db } from "./firebase"; 
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, Sector, ComposedChart, AreaChart, Area, ScatterChart, Scatter, LabelList } from 'recharts';
-import { TrendingUp, MapPin, LayoutDashboard, AlertTriangle, CheckCircle, Upload, Users, DollarSign, List, Globe, Boxes, Award, Calendar, Layers, PlusCircle, Trash2, GitCommit, Target, Filter, Download, Clock, Repeat, MessageSquare, Copy, Info, History, CreditCard, UserCheck, Landmark, Grid3X3, Truck, HelpCircle, FileText, XCircle, Zap, Wallet, ShoppingBag, Activity, PieChart as PieChartIcon, Package, Search, RefreshCw, ArrowRight, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Check, TrendingDown, ClipboardCopy, Megaphone, MousePointer, Eye, Percent, Coins, Star, BookOpen, UserPlus, Heart, Share2, Shield, Gift, Smile, Settings, Save, RotateCcw } from 'lucide-react'; 
-
+import { TrendingUp, MapPin, LayoutDashboard, AlertTriangle, CheckCircle, Upload, Users, DollarSign, List, Globe, Boxes, Award, Calendar, Layers, PlusCircle, Trash2, GitCommit, Target, Filter, Download, Clock, Repeat, MessageSquare, Copy, Info, History, CreditCard, UserCheck, Landmark, Grid3X3, Truck, HelpCircle, FileText, XCircle, Zap, Wallet, ShoppingBag, Activity, PieChart as PieChartIcon, Package, Search, RefreshCw, ArrowRight, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Check, TrendingDown, ClipboardCopy, Megaphone, MousePointer, Eye, Percent, Coins, Star, BookOpen, UserPlus, Heart, Share2, Shield, Gift, Smile, Settings, Save, RotateCcw, Lock } from 'lucide-react';
 
 /**
  * Data CSV fallback (Sales)
@@ -269,9 +268,17 @@ const STATUS_COLORS = { 'confirmed': '#10b981', 'completed': '#059669', 'pending
 
 const useProcessedData = (rawData) => {
     return useMemo(() => {
-        if (rawData.length === 0) return { 
-            utmChartAnalysis: [], utmSourceAnalysis: [], provinceAnalysis: [], uniqueCustomerList: [], geoRevenueChart: [], productVariantAnalysis: [], top3Products: [], customerSegmentationData: [], rawData: [], uniqueDates: { years: [], months: [], days: [] }, totalConfirmedRevenue: 0, totalConfirmedOrders: 0, timeAnalysis: { yearly: [], quarterly: [], monthly: [] }, paymentMethodAnalysis: [], customerTypeAnalysis: [], financialEntityAnalysis: [], courierAnalysis: [], rawTimeData: [], heatmapData: [], heatmapMaxRevenue: 0, dailyTrendAnalysis: [], confirmedOrders: [], totalGrossProfit: 0, topLocationLists: { provinces: [], cities: [], subdistricts: [] }
-        };
+        const hasLocationData = rawData.some(item => 
+            (item[COL_PROVINCE] && item[COL_PROVINCE].toString().trim() !== '' && item[COL_PROVINCE] !== '-') ||
+            (item[COL_CITY] && item[COL_CITY].toString().trim() !== '' && item[COL_CITY] !== '-')
+        );
+        
+        const isDigitalMode = !hasLocationData; // True jika tidak ada lokasi
+
+        if (rawData.length === 0) return { 
+            utmChartAnalysis: [], utmSourceAnalysis: [], provinceAnalysis: [], uniqueCustomerList: [], geoRevenueChart: [], productVariantAnalysis: [], top3Products: [], customerSegmentationData: [], rawData: [], uniqueDates: { years: [], months: [], days: [] }, totalConfirmedRevenue: 0, totalConfirmedOrders: 0, timeAnalysis: { yearly: [], quarterly: [], monthly: [] }, paymentMethodAnalysis: [], customerTypeAnalysis: [], financialEntityAnalysis: [], courierAnalysis: [], rawTimeData: [], heatmapData: [], heatmapMaxRevenue: 0, dailyTrendAnalysis: [], confirmedOrders: [], totalGrossProfit: 0, topLocationLists: { provinces: [], cities: [], subdistricts: [] },
+            isDigitalMode: false // Default false saat kosong
+        };
 
         const isConfirmed = (item) => !!item[COL_CONFIRMED_TIME] && item[COL_CONFIRMED_TIME].toString().trim() !== '';
         const filteredData = rawData.filter(isConfirmed); 
@@ -379,7 +386,8 @@ const useProcessedData = (rawData) => {
                         lastOrderDate: null, 
                         frequency: 0, 
                         monetary: 0, 
-                        phone: item[COL_PHONE] || '-', 
+                        phone: item[COL_PHONE] || '-',
+                        email: item['email'] || '-',
                         address: item[COL_ADDRESS] || '-', 
                         province: item[COL_PROVINCE] || '-', 
                         city: item[COL_CITY] || '-', 
@@ -617,8 +625,9 @@ const useProcessedData = (rawData) => {
         const _topSubdistricts = Object.entries(subCounts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
 
         return { 
-            utmChartAnalysis, utmSourceAnalysis, provinceAnalysis, uniqueCustomerList, geoRevenueChart, productVariantAnalysis, top3Products, rawData, uniqueDates, customerSegmentationData: finalCustomerSegmentationData, totalConfirmedRevenue, totalConfirmedOrders, timeAnalysis, rawTimeData, paymentMethodAnalysis, customerTypeAnalysis, financialEntityAnalysis, courierAnalysis, heatmapData: heatmapGrid, heatmapMaxRevenue, dailyTrendAnalysis: dailyTrendStats, confirmedOrders: filteredData, totalGrossProfit, topLocationLists: { provinces: _topProvinces, cities: _topCities, subdistricts: _topSubdistricts }
-        };
+            utmChartAnalysis, utmSourceAnalysis, provinceAnalysis, uniqueCustomerList, geoRevenueChart, productVariantAnalysis, top3Products, rawData, uniqueDates, customerSegmentationData: finalCustomerSegmentationData, totalConfirmedRevenue, totalConfirmedOrders, timeAnalysis, rawTimeData, paymentMethodAnalysis, customerTypeAnalysis, financialEntityAnalysis, courierAnalysis, heatmapData: heatmapGrid, heatmapMaxRevenue, dailyTrendAnalysis: dailyTrendStats, confirmedOrders: filteredData, totalGrossProfit, topLocationLists: { provinces: _topProvinces, cities: _topCities, subdistricts: _topSubdistricts },
+            isDigitalMode
+        };
     }, [rawData]);
 };
 
@@ -649,19 +658,25 @@ const StatCard = ({ title, value, icon: Icon, color, unit = '', description = nu
     </div>
 );
 
-const NavButton = ({ id, name, view, setView, icon: Icon }) => (
-    <button
-        onClick={() => setView(id)}
-        className={`flex items-center space-x-3 w-full justify-start px-4 py-3 text-sm font-medium transition-all duration-300 rounded-lg shadow-md ${
-            view === id ? 'bg-indigo-600 text-white shadow-indigo-500/50' : 'bg-white text-gray-700 hover:bg-gray-100 hover:shadow-lg'
-        }`}
-    >
-        <Icon className="w-5 h-5" />
-        <span>{name}</span>
-    </button>
+const NavButton = ({ id, name, view, setView, icon: Icon, disabled = false }) => (
+    <button
+        onClick={() => !disabled && setView(id)}
+        disabled={disabled}
+        className={`flex items-center space-x-3 w-full justify-start px-4 py-3 text-sm font-medium transition-all duration-300 rounded-lg shadow-md ${
+            view === id 
+            ? 'bg-indigo-600 text-white shadow-indigo-500/50' 
+            : disabled 
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-60' 
+                : 'bg-white text-gray-700 hover:bg-gray-100 hover:shadow-lg'
+        }`}
+    >
+        <Icon className="w-5 h-5" />
+        <span>{name}</span>
+        {disabled && <Lock className="w-3 h-3 ml-auto" />}
+    </button>
 );
 
-const CustomerSegmentationView = ({ data }) => {
+const CustomerSegmentationView = ({ data, isDigitalMode }) => {
     const [selectedSegment, setSelectedSegment] = useState('All');
     // Filter Inputs
     const [recencyMin, setRecencyMin] = useState('');
@@ -818,12 +833,12 @@ const CustomerSegmentationView = ({ data }) => {
 
     const handleExportCSV = () => {
         if (filteredTableData.length === 0) { alert("Tidak ada data."); return; }
-        const baseHeaders = ["Nama,No WhatsApp,Alamat Lengkap,Provinsi,Kabupaten,Kecamatan,Segmen,Recency (Hari),Frequency,Total Belanja,Produk Terakhir"];
+        const baseHeaders = ["Nama,No WhatsApp,Email,Alamat Lengkap,Provinsi,Kabupaten,Kecamatan,Segmen,Recency (Hari),Frequency,Total Belanja,Produk Terakhir"];
         const productHeaders = productColumns.map(p => `"${p} (Qty)"`);
         const headers = [...baseHeaders, ...productHeaders].join(",");
         const rows = filteredTableData.map(c => {
             const clean = (t) => `"${(t || '').toString().replace(/"/g, '""')}"`;
-            const baseData = [clean(c.name), clean(c.phone), clean(c.address), clean(c.province), clean(c.city), clean(c.subdistrict), clean(c.Segment10Name), c.recency, c.frequency, c.monetary, clean(c.lastProduct)];
+            const baseData = [clean(c.name), clean(c.phone), clean(c.email), clean(c.address), clean(c.province), clean(c.city), clean(c.subdistrict), clean(c.Segment10Name), c.recency, c.frequency, c.monetary, clean(c.lastProduct)];
             const pData = productColumns.map(p => (c.productMap && c.productMap[p]) ? c.productMap[p] : 0);
             return [...baseData, ...pData].join(",");
         });
@@ -1359,91 +1374,112 @@ const CustomerSegmentationView = ({ data }) => {
              {activeData.length > 0 && (
                 <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
                     <div className="overflow-x-auto max-h-[70vh]">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50 sticky top-0 z-10">
-                                <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-16">No</th>
-                                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[200px]">Pelanggan</th>
-                                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Recency</th>
-                                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Freq</th>
-                                    <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Monetary</th>
-                                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Skor RFM</th>
-                                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Segmen</th>
-                                    {productColumns.map((colName, idx) => (
-                                        <th key={idx} className="px-2 py-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider border-l border-gray-100 min-w-[80px]">
-                                            <div className="truncate w-full" title={colName}>{colName}</div>
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {filteredTableData.map((customer, index) => (
-                                    <tr key={index} className="hover:bg-indigo-50/30 transition-colors group">
-                                        <td className="px-4 py-3 text-xs text-gray-500 text-center font-mono">{index + 1}</td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center">
-                                                <div>
-                                                    <div className="text-sm font-bold text-gray-800">{customer.name}</div>
-                                                    <div className="flex flex-col mt-0.5">
-                                                        <div className="flex items-center gap-1 text-xs font-mono text-indigo-600 font-medium">
-                                                            {customer.phone || '-'}
-                                                            {customer.phone && customer.phone !== '-' && (
-                                                                <button onClick={() => copyToClipboard(customer.phone)} className="text-gray-400 hover:text-indigo-600 transition-opacity" title="Salin HP">
-                                                                    <ClipboardCopy className="w-3 h-3" />
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                        <div className="text-[10px] text-gray-500">
-                                                            {customer.city}, {customer.province}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </td>
+                       <table className="min-w-full divide-y divide-gray-200">
+    <thead className="bg-gray-50 sticky top-0 z-10">
+        <tr>
+            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-16">No</th>
+            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[200px]">Pelanggan</th>
+            
+            {/* PERBAIKAN: Judul Kolom Dinamis (Email / Alamat) */}
+            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                {isDigitalMode ? "Email" : "Alamat Lengkap"}
+            </th>
 
-                                        <td className="px-4 py-3 text-center">
-                                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${customer.R_Score >= 4 ? 'bg-green-100 text-green-700' : customer.R_Score <= 2 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>{customer.recency} Hari</span>
-                                        </td>
-                                        <td className="px-4 py-3 text-center text-sm font-medium text-gray-700">{customer.frequency}x</td>
-                                        <td className="px-4 py-3 text-right text-sm font-bold text-gray-800 font-mono tracking-tight">{formatRupiah(customer.monetary)}</td>
-                                        
-                                        <td className="px-4 py-3 text-center">
-                                            <div className="flex justify-center space-x-0.5">
-                                                <span className={`w-4 h-4 flex items-center justify-center text-[10px] font-bold rounded ${customer.R_Score >= 4 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>{customer.R_Score}</span>
-                                                <span className={`w-4 h-4 flex items-center justify-center text-[10px] font-bold rounded ${customer.F_Score >= 4 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>{customer.F_Score}</span>
-                                                <span className={`w-4 h-4 flex items-center justify-center text-[10px] font-bold rounded ${customer.M_Score >= 4 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>{customer.M_Score}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide text-white shadow-sm ${customer.Segment10Color}`}>
-                                                {customer.Segment10Name}
-                                            </span>
-                                        </td>
+            <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Recency</th>
+            <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Freq</th>
+            <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Monetary</th>
+            <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Skor RFM</th>
+            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Segmen</th>
+            
+            {productColumns.map((colName, idx) => (
+                <th key={idx} className="px-2 py-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider border-l border-gray-100 min-w-[80px]">
+                    <div className="truncate w-full" title={colName}>{colName}</div>
+                </th>
+            ))}
+        </tr>
+    </thead>
+    <tbody className="bg-white divide-y divide-gray-200">
+        {filteredTableData.map((customer, index) => (
+            <tr key={index} className="hover:bg-indigo-50/30 transition-colors group">
+                <td className="px-4 py-3 text-xs text-gray-500 text-center font-mono">{index + 1}</td>
+                
+                {/* Kolom Nama & Info Dasar */}
+                <td className="px-4 py-3">
+                    <div className="flex items-center">
+                        <div>
+                            <div className="text-sm font-bold text-gray-800">{customer.name}</div>
+                            <div className="flex flex-col mt-0.5">
+                                <div className="flex items-center gap-1 text-xs font-mono text-indigo-600 font-medium">
+                                    {customer.phone || '-'}
+                                    {customer.phone && customer.phone !== '-' && (
+                                        <button onClick={() => copyToClipboard(customer.phone)} className="text-gray-400 hover:text-indigo-600 transition-opacity" title="Salin HP">
+                                            <ClipboardCopy className="w-3 h-3" />
+                                        </button>
+                                    )}
+                                </div>
+                                {/* Sub-info: Jika fisik tampilkan kota, jika digital kosongkan (karena email sudah ada di kolom sebelah) */}
+                                {!isDigitalMode && (
+                                    <div className="text-[10px] text-gray-500">
+                                        {customer.city || ''}, {customer.province || ''}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </td>
 
-                                        {productColumns.map((colName, idx) => {
-                                            const qty = (customer.productMap && customer.productMap[colName]) ? customer.productMap[colName] : 0;
-                                            return (
-                                                <td key={idx} className="px-2 py-3 text-center border-l border-gray-100">
-                                                    {qty > 0 ? (
-                                                        <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{qty}</span>
-                                                    ) : (
-                                                        <span className="text-gray-200 text-[10px]">-</span>
-                                                    )}
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div className="bg-gray-50 px-4 py-3 border-t border-gray-200 flex items-center justify-between">
-                        <span className="text-xs text-gray-500">Menampilkan {filteredTableData.length} dari {activeData.length} pelanggan</span>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
+                {/* PERBAIKAN: Isi Kolom Dinamis (Email / Alamat) */}
+                <td className="px-4 py-3 text-xs text-gray-600">
+                    {isDigitalMode 
+                        ? (customer.email || <span className="text-gray-400 italic">No Email</span>) 
+                        : (customer.address || '-')
+                    }
+                </td>
+
+                <td className="px-4 py-3 text-center">
+                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${customer.R_Score >= 4 ? 'bg-green-100 text-green-700' : customer.R_Score <= 2 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>{customer.recency} Hari</span>
+                </td>
+                <td className="px-4 py-3 text-center text-sm font-medium text-gray-700">{customer.frequency}x</td>
+                <td className="px-4 py-3 text-right text-sm font-bold text-gray-800 font-mono tracking-tight">{formatRupiah(customer.monetary)}</td>
+                
+                <td className="px-4 py-3 text-center">
+                    <div className="flex justify-center space-x-0.5">
+                        <span className={`w-4 h-4 flex items-center justify-center text-[10px] font-bold rounded ${customer.R_Score >= 4 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>{customer.R_Score}</span>
+                        <span className={`w-4 h-4 flex items-center justify-center text-[10px] font-bold rounded ${customer.F_Score >= 4 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>{customer.F_Score}</span>
+                        <span className={`w-4 h-4 flex items-center justify-center text-[10px] font-bold rounded ${customer.M_Score >= 4 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>{customer.M_Score}</span>
+                    </div>
+                </td>
+
+                <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide text-white shadow-sm ${customer.Segment10Color}`}>
+                        {customer.Segment10Name}
+                    </span>
+                </td>
+
+                {productColumns.map((colName, idx) => {
+                    const qty = (customer.productMap && customer.productMap[colName]) ? customer.productMap[colName] : 0;
+                    return (
+                        <td key={idx} className="px-2 py-3 text-center border-l border-gray-100">
+                            {qty > 0 ? (
+                                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{qty}</span>
+                            ) : (
+                                <span className="text-gray-200 text-[10px]">-</span>
+                            )}
+                        </td>
+                    );
+                })}
+            </tr>
+        ))}
+    </tbody>
+</table>
+</div>
+<div className="bg-gray-50 px-4 py-3 border-t border-gray-200 flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Menampilkan {filteredTableData.length} dari {activeData.length} pelanggan</span>
+                </div>
+            </div>
+        )}
+    </div>
+    );
 };
 
 const MarketingAnalysisView = ({ adsData }) => {
@@ -1855,7 +1891,7 @@ const HeatmapAnalysisView = ({ heatmapData, maxRevenue }) => {
     );
 };
 
-const DailyReportView = ({ confirmedOrders, customerSegmentationData, rawData, adsData, setView }) => {
+const DailyReportView = ({ confirmedOrders, customerSegmentationData, rawData, adsData, setView, isDigitalMode }) => {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -2135,7 +2171,7 @@ const DailyReportView = ({ confirmedOrders, customerSegmentationData, rawData, a
     const handleExportDailyReport = () => {
         if (tableData.length === 0) { alert("Tidak ada data untuk diekspor."); return; }
         
-        const headers = ["Order ID", "Tanggal Konfirmasi", "Status", "Nama Pelanggan", "No HP", "Kota", "Provinsi", "Produk (Qty)", "Total Nilai (IDR)", "Kurir", "Metode Bayar"];
+        const headers = ["Order ID", "Tanggal Konfirmasi", "Status", "Nama Pelanggan", "No HP", "Email", "Kota", "Provinsi", "Produk (Qty)", "Total Nilai (IDR)", "Kurir", "Metode Bayar"];
         
         const rows = tableData.map(item => {
             const clean = (t) => `"${(t || '').toString().replace(/"/g, '""')}"`;
@@ -2145,6 +2181,7 @@ const DailyReportView = ({ confirmedOrders, customerSegmentationData, rawData, a
                 clean(item['order_status']),
                 clean(item[COL_NAME]),
                 clean(item[COL_PHONE]),
+                clean(item['email']),
                 clean(item[COL_CITY]),
                 clean(item[COL_PROVINCE]),
                 clean(getProductSummary(item)),
@@ -2201,1243 +2238,745 @@ const DailyReportView = ({ confirmedOrders, customerSegmentationData, rawData, a
     };
 
     return (
-        <div className="space-y-8">
-            {issueCount > 0 && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-lg shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center animate-pulse-slow">
-                    <div className="flex items-start"><div className="flex-shrink-0"><AlertTriangle className="h-6 w-6 text-red-600" /></div><div className="ml-3"><h3 className="text-lg font-bold text-red-800">Peringatan: {issueCount} Pesanan Bermasalah Ditemukan!</h3><div className="mt-1 text-sm text-red-700"><p>Terdapat potensi kehilangan omzet sebesar <span className="font-extrabold">{formatRupiah(lostPotential)}</span> dari pesanan Pending ({'>'}14 hari), RTS, dan Cancel.</p></div></div></div>
-                    <button onClick={() => setView('recovery')} className="mt-3 sm:mt-0 flex-shrink-0 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow hover:bg-red-700 transition-colors flex items-center">Lihat & Pulihkan <ArrowRight className="ml-2 w-4 h-4" /></button>
-                </div>
-            )}
+       <div className="space-y-8">
+    {/* --- PERINGATAN ISU (MERAH) --- */}
+    {issueCount > 0 && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-lg shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center animate-pulse-slow">
+            <div className="flex items-start">
+                <div className="flex-shrink-0"><AlertTriangle className="h-6 w-6 text-red-600" /></div>
+                <div className="ml-3">
+                    <h3 className="text-lg font-bold text-red-800">Peringatan: {issueCount} Pesanan Bermasalah Ditemukan!</h3>
+                    <div className="mt-1 text-sm text-red-700">
+                        <p>Terdapat potensi kehilangan omzet sebesar <span className="font-extrabold">{formatRupiah(lostPotential)}</span> dari pesanan Pending ({'>'}14 hari), RTS, dan Cancel.</p>
+                    </div>
+                </div>
+            </div>
+            <button onClick={() => setView('recovery')} className="mt-3 sm:mt-0 flex-shrink-0 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow hover:bg-red-700 transition-colors flex items-center">Lihat & Pulihkan <ArrowRight className="ml-2 w-4 h-4" /></button>
+        </div>
+    )}
 
-            <div className="bg-white p-4 rounded-xl shadow border border-indigo-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center space-x-2"><Filter className="w-5 h-5 text-indigo-600" /><h3 className="font-semibold text-gray-800">Filter Laporan:</h3></div>
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200"><span className="text-xs text-gray-500 font-bold uppercase">Dari</span><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-transparent text-sm font-medium focus:outline-none text-gray-700"/></div>
-                    <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200"><span className="text-xs text-gray-500 font-bold uppercase">Sampai</span><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="bg-transparent text-sm font-medium focus:outline-none text-gray-700"/></div>
-                    {(startDate || endDate) && (<button onClick={() => { setStartDate(''); setEndDate(''); }} className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors" title="Reset Filter"><XCircle className="w-5 h-5" /></button>)}
-                </div>
-            </div>
+    {/* --- FILTER BAR --- */}
+    <div className="bg-white p-4 rounded-xl shadow border border-indigo-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center space-x-2"><Filter className="w-5 h-5 text-indigo-600" /><h3 className="font-semibold text-gray-800">Filter Laporan:</h3></div>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200"><span className="text-xs text-gray-500 font-bold uppercase">Dari</span><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-transparent text-sm font-medium focus:outline-none text-gray-700"/></div>
+            <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200"><span className="text-xs text-gray-500 font-bold uppercase">Sampai</span><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="bg-transparent text-sm font-medium focus:outline-none text-gray-700"/></div>
+            {(startDate || endDate) && (<button onClick={() => { setStartDate(''); setEndDate(''); }} className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors" title="Reset Filter"><XCircle className="w-5 h-5" /></button>)}
+        </div>
+    </div>
 
-            <div className="space-y-6">
-                
-                {/* 1. FINANCIAL PERFORMANCE (3 DI ATAS, 3 DI BAWAH) */}
-                <div className="bg-white p-5 rounded-xl shadow-sm border border-indigo-100">
-                    <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2">
-                        <DollarSign className="w-4 h-4 mr-2 text-green-600" />
-                        Kinerja Keuangan (Financial Performance)
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {/* Baris Atas (Pemasukan) */}
-                        <StatCard compact title="Total Gross Revenue" value={formatRupiah(totalGrossRevenue)} icon={Wallet} color="#8b5cf6" />
-                        <StatCard compact title="Net Revenue" value={formatRupiah(totalRevenue)} icon={DollarSign} color="#2563EB" />
-                        <StatCard compact title="Est. Net Profit" value={formatRupiah(totalProfit)} icon={TrendingUp} color="#10B981" description="(Gross - Disc) - COGS" />
-                        
-                        {/* Baris Bawah (Biaya & Hasil Akhir) */}
-                        <StatCard compact title="Total Ad Spend" value={formatRupiah(filteredAdSpend)} icon={Megaphone} color="#EF4444" />
-                        <StatCard compact title="Real Net Profit" value={formatRupiah(dailyRealNetProfit)} icon={Coins} color={dailyRealNetProfit > 0 ? "#10B981" : "#EF4444"} description="Laba Bersih - Ads" />
-                        <StatCard compact title="Profit Margin" value={profitMargin.toFixed(1) + "%"} icon={PieChartIcon} color={profitMargin > 30 ? "#10B981" : profitMargin > 15 ? "#F59E0B" : "#EF4444"} />
-                    </div>
-                </div>
+    <div className="space-y-6">
+        {/* --- STATISTIK KEUANGAN --- */}
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-indigo-100">
+            <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2">
+                <DollarSign className="w-4 h-4 mr-2 text-green-600" /> Kinerja Keuangan (Financial Performance)
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <StatCard compact title="Total Gross Revenue" value={formatRupiah(totalGrossRevenue)} icon={Wallet} color="#8b5cf6" />
+                <StatCard compact title="Net Revenue" value={formatRupiah(totalRevenue)} icon={DollarSign} color="#2563EB" />
+                <StatCard compact title="Est. Net Profit" value={formatRupiah(totalProfit)} icon={TrendingUp} color="#10B981" description="(Gross - Disc) - COGS" />
+                <StatCard compact title="Total Ad Spend" value={formatRupiah(filteredAdSpend)} icon={Megaphone} color="#EF4444" />
+                <StatCard compact title="Real Net Profit" value={formatRupiah(dailyRealNetProfit)} icon={Coins} color={dailyRealNetProfit > 0 ? "#10B981" : "#EF4444"} description="Laba Bersih - Ads" />
+                <StatCard compact title="Profit Margin" value={profitMargin.toFixed(1) + "%"} icon={PieChartIcon} color={profitMargin > 30 ? "#10B981" : profitMargin > 15 ? "#F59E0B" : "#EF4444"} />
+            </div>
+        </div>
 
-                {/* 2. SPLIT ROW: VOLUME & EFFICIENCY */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Volume */}
-                    <div className="bg-white p-5 rounded-xl shadow-sm border border-indigo-100 h-full">
-                        <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2">
-                            <ShoppingBag className="w-4 h-4 mr-2 text-purple-600" />
-                            Volume Transaksi
-                        </h3>
-                        <div className="grid grid-cols-2 gap-3">
-                            <StatCard compact title="Semua Pesanan" value={totalAllOrdersInPeriod} icon={ShoppingBag} color="#6366f1" unit="Order" description="Termasuk Batal/RTS" />
-                            <StatCard compact title="Transaksi Valid" value={totalTransactions} icon={CheckCircle} color="#10B981" unit="Trx" description="Confirmed/Completed" />
-                            <StatCard compact title="Pending Orders" value={pendingCount} icon={AlertTriangle} color="#F59E0B" unit="Order" description="Belum dibayar" />
-                            <StatCard compact title="Pelanggan Unik" value={totalCustomers} icon={Users} color="#06b6d4" unit="Org" />
-                        </div>
-                    </div>
+        {/* --- STATISTIK VOLUME & EFISIENSI --- */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white p-5 rounded-xl shadow-sm border border-indigo-100 h-full">
+                <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2">
+                    <ShoppingBag className="w-4 h-4 mr-2 text-purple-600" /> Volume Transaksi
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                    <StatCard compact title="Semua Pesanan" value={totalAllOrdersInPeriod} icon={ShoppingBag} color="#6366f1" unit="Order" description="Termasuk Batal/RTS" />
+                    <StatCard compact title="Transaksi Valid" value={totalTransactions} icon={CheckCircle} color="#10B981" unit="Trx" description="Confirmed/Completed" />
+                    <StatCard compact title="Pending Orders" value={pendingCount} icon={AlertTriangle} color="#F59E0B" unit="Order" description="Belum dibayar" />
+                    <StatCard compact title="Pelanggan Unik" value={totalCustomers} icon={Users} color="#06b6d4" unit="Org" />
+                </div>
+            </div>
+            <div className="bg-white p-5 rounded-xl shadow-sm border border-indigo-100 h-full">
+                <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2">
+                    <Activity className="w-4 h-4 mr-2 text-blue-600" /> Efisiensi Operasional
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                    <StatCard compact title="Closing Rate" value={closingRate + "%"} icon={Target} color="#EC4899" unit="Conv" description="% Transaksi Valid" />
+                    <StatCard compact title="Avg Closing Time" value={formatDuration(avgClosingTime)} icon={Clock} color="#F59E0B" description="Pending ke Confirmed" />
+                    <StatCard compact title="Avg Basket Size" value={avgBasketSize} icon={Boxes} color="#F97316" unit="Item/Order" />
+                    <StatCard compact title="Total Produk Terjual" value={totalSoldItems.toLocaleString()} icon={Package} color="#d946ef" unit="Pcs" />
+                </div>
+            </div>
+        </div>
+    </div>
+{/* --- BAGIAN YANG HILANG: KESIMPULAN ANALISIS DATA --- */}
+    <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 p-6 rounded-xl shadow-md border border-indigo-100">
+        <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4">
+            <Activity className="w-5 h-5 mr-2 text-indigo-600" /> Kesimpulan Analisis Data
+        </h3>
+        
+        {/* Grid otomatis: 3 kolom untuk Digital, 4 kolom untuk Fisik */}
+        <div className={`grid grid-cols-1 sm:grid-cols-2 ${isDigitalMode ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4 mb-4`}>
+            
+            {/* 1. Produk */}
+            <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
+                <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Produk Paling Laris</p>
+                <p className="text-sm font-bold text-gray-800 line-clamp-2 leading-tight" title={summaryInsights.productName}>{summaryInsights.productName}</p>
+                <p className="text-xs text-indigo-600 font-semibold mt-1">{summaryInsights.productQty.toLocaleString()} Unit Terjual</p>
+            </div>
 
-                    {/* Efficiency */}
-                    <div className="bg-white p-5 rounded-xl shadow-sm border border-indigo-100 h-full">
-                        <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2">
-                            <Activity className="w-4 h-4 mr-2 text-blue-600" />
-                            Efisiensi Operasional
-                        </h3>
-                        <div className="grid grid-cols-2 gap-3">
-                            <StatCard compact title="Closing Rate" value={closingRate + "%"} icon={Target} color="#EC4899" unit="Conv" description="% Transaksi Valid" />
-                            <StatCard compact title="Avg Closing Time" value={formatDuration(avgClosingTime)} icon={Clock} color="#F59E0B" description="Pending ke Confirmed" />
-                            <StatCard compact title="Avg Basket Size" value={avgBasketSize} icon={Boxes} color="#F97316" unit="Item/Order" />
-                            <StatCard compact title="Total Produk Terjual" value={totalSoldItems.toLocaleString()} icon={Package} color="#d946ef" unit="Pcs" />
-                        </div>
-                    </div>
-                </div>
+            {/* 2 & 3. Lokasi (HANYA MUNCUL JIKA MODE FISIK) */}
+            {!isDigitalMode && (
+                <>
+                    <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Kota Top Order</p>
+                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{summaryInsights.cityName}</p>
+                        <p className="text-xs text-teal-600 font-semibold mt-1">{summaryInsights.cityCount.toLocaleString()} Order</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Provinsi Dominan</p>
+                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{summaryInsights.provinceName}</p>
+                        <p className="text-xs text-blue-600 font-semibold mt-1">{summaryInsights.provinceCount.toLocaleString()} Order</p>
+                    </div>
+                </>
+            )}
 
-            </div>
-            
-            <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 p-6 rounded-xl shadow-md border border-indigo-100">
-                <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4">
-                    <Activity className="w-5 h-5 mr-2 text-indigo-600" />
-                    Kesimpulan Analisis Data
-                </h3>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                    <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Produk Paling Laris</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-2 leading-tight" title={summaryInsights.productName}>{summaryInsights.productName}</p>
-                        <p className="text-xs text-indigo-600 font-semibold mt-1">{summaryInsights.productQty.toLocaleString()} Unit Terjual</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Kota Top Order</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{summaryInsights.cityName}</p>
-                        <p className="text-xs text-teal-600 font-semibold mt-1">{summaryInsights.cityCount.toLocaleString()} Order</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Provinsi Dominan</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{summaryInsights.provinceName}</p>
-                        <p className="text-xs text-blue-600 font-semibold mt-1">{summaryInsights.provinceCount.toLocaleString()} Order</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Sumber Trafik Utama</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{summaryInsights.sourceName}</p>
-                        <p className="text-xs text-orange-600 font-semibold mt-1">{summaryInsights.sourceCount.toLocaleString()} Konversi</p>
-                    </div>
-                    
-                    <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Jam Belanja Tersibuk</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1 flex items-center"><Clock className="w-3 h-3 mr-1 text-purple-500"/> {summaryInsights.peakHour}</p>
-                        <p className="text-xs text-purple-600 font-semibold mt-1">{summaryInsights.peakHourCount.toLocaleString()} Aktivitas</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Tanggal Omzet Tertinggi</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1 flex items-center"><Calendar className="w-3 h-3 mr-1 text-green-500"/> Tgl {summaryInsights.bestDay}</p>
-                        <p className="text-xs text-green-600 font-semibold mt-1">{summaryInsights.bestDayRevenue}</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center lg:col-span-2">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Total Net Revenue (Periode Ini)</p>
-                        <p className="text-xl font-bold text-green-700">{summaryInsights.revenue}</p>
-                        <p className="text-xs text-gray-500 font-medium mt-1">dari total {summaryInsights.trx} Transaksi Valid</p>
-                    </div>
-                </div>
+            {/* 4. Sumber Trafik */}
+            <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
+                <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Sumber Trafik Utama</p>
+                <p className="text-sm font-bold text-gray-800 line-clamp-1">{summaryInsights.sourceName}</p>
+                <p className="text-xs text-orange-600 font-semibold mt-1">{summaryInsights.sourceCount.toLocaleString()} Konversi</p>
+            </div>
+            
+            {/* 5. Jam Belanja */}
+            <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
+                <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Jam Belanja Tersibuk</p>
+                <p className="text-sm font-bold text-gray-800 line-clamp-1 flex items-center"><Clock className="w-3 h-3 mr-1 text-purple-500"/> {summaryInsights.peakHour}</p>
+                <p className="text-xs text-purple-600 font-semibold mt-1">{summaryInsights.peakHourCount.toLocaleString()} Aktivitas</p>
+            </div>
 
-                <div className="bg-white/60 p-4 rounded-lg border border-indigo-100 text-sm text-gray-700 leading-relaxed shadow-inner">
-                    <p>
-                        <span className="font-bold text-indigo-700">💡 Insight Singkat:</span> Performa penjualan periode ini didominasi oleh produk <strong>{summaryInsights.productName}</strong>. 
-                        Secara geografis, kota dengan pesanan terbanyak adalah <strong>{summaryInsights.cityName}</strong>, sedangkan provinsi dengan kontribusi terbesar adalah <strong>{summaryInsights.provinceName}</strong>.
-                        Mayoritas trafik datang melalui jalur <strong>{summaryInsights.sourceName}</strong>.
-                        Secara tren waktu, tanggal <strong>{summaryInsights.bestDay}</strong> mencatatkan omzet tertinggi, sementara jam belanja paling sibuk (rata-rata harian) terjadi pada pukul <strong>{summaryInsights.peakHour}</strong>.
-                    </p>
-                </div>
-            </div>
+            {/* 6. Tanggal Omzet */}
+            <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
+                <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Tanggal Omzet Tertinggi</p>
+                <p className="text-sm font-bold text-gray-800 line-clamp-1 flex items-center"><Calendar className="w-3 h-3 mr-1 text-green-500"/> Tgl {summaryInsights.bestDay}</p>
+                <p className="text-xs text-green-600 font-semibold mt-1">{summaryInsights.bestDayRevenue}</p>
+            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <h3 className="text-xl font-semibold mb-4 text-gray-800 flex items-center"><Calendar className="w-5 h-5 mr-2 text-indigo-600" />Tren Harian (Akumulasi Tanggal 1 - 31)</h3>
-                    <p className="text-sm text-gray-500 mb-4">Grafik gabungan: Batang untuk Net Revenue dan Garis untuk Jumlah Transaksi (Hanya Confirmed).</p>
-                    <div className="h-96 w-full"><ResponsiveContainer width="100%" height="100%"><ComposedChart data={trendData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}><CartesianGrid stroke="#f5f5f5" /><XAxis dataKey="day" label={{ value: 'Tanggal (Hari ke-)', position: 'insideBottomRight', offset: -10 }} /><YAxis yAxisId="left" orientation="left" stroke="#2563EB" tickFormatter={(val) => formatRupiah(val).replace('Rp','').replace(',00','')} /><YAxis yAxisId="right" orientation="right" stroke="#F59E0B" /><Tooltip formatter={(value, name) => [name === 'Revenue' ? formatRupiah(value) : value, name]} /><Legend /><Bar yAxisId="left" dataKey="revenue" name="Revenue" barSize={20} fill="#2563EB" radius={[4, 4, 0, 0]} /><Line yAxisId="right" type="monotone" dataKey="transactions" name="Transaksi" stroke="#F59E0B" strokeWidth={3} dot={{r: 4}} /></ComposedChart></ResponsiveContainer></div>
-                </div>
-                <div className="flex flex-col gap-6 h-full">
-                    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col flex-1 max-h-[350px]">
-                        <h3 className="text-lg font-semibold mb-4 text-gray-800 border-b pb-2 flex items-center"><Award className="w-5 h-5 mr-2 text-pink-600" />Top 5 Varian Terlaris</h3>
-                        <div className="space-y-4 pt-2 overflow-y-auto pr-2 custom-scrollbar flex-1">{topProducts.length === 0 ? (<p className="text-gray-500 italic text-center py-4">Data produk tidak tersedia.</p>) : (topProducts.slice(0, 5).map((product, index) => (<div key={index} className="flex flex-col"><div className="flex justify-between items-center mb-1"><span className={`text-sm font-semibold truncate max-w-[150px] ${index === 0 ? 'text-pink-600' : 'text-gray-900'}`} title={product.name}>#{index + 1}: {product.name}</span><span className="text-sm font-extrabold text-indigo-600">{product.totalQuantity.toLocaleString()} Unit</span></div><div className="w-full bg-gray-200 rounded-full h-1.5"><div className={`h-1.5 rounded-full ${index === 0 ? 'bg-pink-500' : index === 1 ? 'bg-pink-400' : 'bg-pink-300'}`} style={{ width: `${(product.totalQuantity / topProducts[0].totalQuantity) * 100}%` }}></div></div></div>)))}</div>
-                    </div>
-                    
-                    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col flex-1 max-h-[350px]">
-                        <h3 className="text-lg font-semibold mb-4 text-gray-800 border-b pb-2 flex items-center"><UserPlus className="w-5 h-5 mr-2 text-yellow-600" />Top 5 Big Spenders</h3>
-                        <div className="space-y-3 pt-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                            {topSpenders.length === 0 ? (
-                                <p className="text-gray-500 italic text-center py-4 text-xs">Belum ada transaksi.</p>
-                            ) : (
-                                topSpenders.map((cust, index) => (
-                                    <div key={index} className="flex justify-between items-center border-b border-gray-50 last:border-0 pb-2 last:pb-0">
-                                        <div className="flex items-center gap-3 overflow-hidden">
-                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 ${index === 0 ? 'bg-yellow-500 shadow-md' : 'bg-gray-200 text-gray-600'}`}>
-                                                {index + 1}
-                                            </div>
-                                            <div className="min-w-0">
-                                                <p className="text-xs font-bold text-gray-800 truncate max-w-[100px]" title={cust.name}>{cust.name}</p>
-                                                <p className="text-[9px] text-gray-500 truncate max-w-[100px]">{cust.city}</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-right flex-shrink-0">
-                                            <p className="text-xs font-bold text-green-600">{formatRupiah(cust.revenue)}</p>
-                                            <p className="text-[9px] text-gray-400">{cust.count} Order</p>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
+            {/* 7. Total Revenue (Span kolom agar rapi) */}
+            <div className={`bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center ${isDigitalMode ? '' : 'lg:col-span-2'}`}>
+                <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Total Net Revenue (Periode Ini)</p>
+                <p className="text-xl font-bold text-green-700">{summaryInsights.revenue}</p>
+                <p className="text-xs text-gray-500 font-medium mt-1">dari total {summaryInsights.trx} Transaksi Valid</p>
+            </div>
+        </div>
 
-            {/* --- NEW SECTION: Sebaran Lokasi (List) --- */}
-            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2">
-                    <MapPin className="w-5 h-5 mr-2 text-red-600" />
-                    Sebaran Lokasi Pengiriman Terbanyak (Top 10)
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* List Provinsi */}
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col h-80">
-                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center flex-shrink-0 border-b pb-2 border-gray-200">
-                            <Globe className="w-3 h-3 mr-1 text-blue-500" /> Provinsi
-                        </h4>
-                        <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                            {topLocationLists.provinces.length === 0 ? <p className="text-xs text-gray-400 italic text-center mt-10">Data tidak cukup</p> : 
-                            topLocationLists.provinces.map((loc, idx) => (
-                                <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-white hover:shadow-sm rounded transition-all">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <span className={`text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0 ${idx < 3 ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'}`}>#{idx+1}</span>
-                                        <span className="font-medium text-gray-700 truncate" title={loc.name}>{loc.name}</span>
-                                    </div>
-                                    <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full text-xs flex-shrink-0">{loc.value}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+        {/* Text Insight (Kalimatnya juga otomatis menyesuaikan) */}
+        <div className="bg-white/60 p-4 rounded-lg border border-indigo-100 text-sm text-gray-700 leading-relaxed shadow-inner">
+            <p>
+                <span className="font-bold text-indigo-700">💡 Insight Singkat:</span> Performa penjualan periode ini didominasi oleh produk <strong>{summaryInsights.productName}</strong>. 
+                {!isDigitalMode && (
+                    <> Secara geografis, kota dengan pesanan terbanyak adalah <strong>{summaryInsights.cityName}</strong>, sedangkan provinsi dengan kontribusi terbesar adalah <strong>{summaryInsights.provinceName}</strong>.</>
+                )}
+                Mayoritas trafik datang melalui jalur <strong>{summaryInsights.sourceName}</strong>.
+                Secara tren waktu, tanggal <strong>{summaryInsights.bestDay}</strong> mencatatkan omzet tertinggi, sementara jam belanja paling sibuk (rata-rata harian) terjadi pada pukul <strong>{summaryInsights.peakHour}</strong>.
+            </p>
+        </div>
+    </div>
 
-                    {/* List Kota/Kabupaten */}
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col h-80">
-                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center flex-shrink-0 border-b pb-2 border-gray-200">
-                            <MapPin className="w-3 h-3 mr-1 text-red-500" /> Kota / Kabupaten
-                        </h4>
-                         <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                            {topLocationLists.cities.length === 0 ? <p className="text-xs text-gray-400 italic text-center mt-10">Data tidak cukup</p> : 
-                            topLocationLists.cities.map((loc, idx) => (
-                                <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-white hover:shadow-sm rounded transition-all">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <span className={`text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0 ${idx < 3 ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-500'}`}>#{idx+1}</span>
-                                        <span className="font-medium text-gray-700 truncate" title={loc.name}>{loc.name}</span>
-                                    </div>
-                                    <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full text-xs flex-shrink-0">{loc.value}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+{/* --- SEBARAN LOKASI (Hanya Muncul Jika Produk Fisik) --- */}
+    {!isDigitalMode && (
+        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2">
+                <MapPin className="w-5 h-5 mr-2 text-red-600" /> Sebaran Lokasi Pengiriman Terbanyak (Top 10)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* List Provinsi */}
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col h-80">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center flex-shrink-0 border-b pb-2 border-gray-200"><Globe className="w-3 h-3 mr-1 text-blue-500" /> Provinsi</h4>
+                    <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                        {topLocationLists.provinces.length === 0 ? <p className="text-xs text-gray-400 italic text-center mt-10">Data tidak cukup</p> : 
+                        topLocationLists.provinces.map((loc, idx) => (
+                            <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-white hover:shadow-sm rounded transition-all">
+                                <div className="flex items-center gap-2 min-w-0"><span className={`text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0 ${idx < 3 ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'}`}>#{idx+1}</span><span className="font-medium text-gray-700 truncate" title={loc.name}>{loc.name}</span></div><span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full text-xs flex-shrink-0">{loc.value}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                {/* List Kota */}
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col h-80">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center flex-shrink-0 border-b pb-2 border-gray-200"><MapPin className="w-3 h-3 mr-1 text-red-500" /> Kota / Kabupaten</h4>
+                    <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                        {topLocationLists.cities.length === 0 ? <p className="text-xs text-gray-400 italic text-center mt-10">Data tidak cukup</p> : 
+                        topLocationLists.cities.map((loc, idx) => (
+                            <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-white hover:shadow-sm rounded transition-all">
+                                <div className="flex items-center gap-2 min-w-0"><span className={`text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0 ${idx < 3 ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-500'}`}>#{idx+1}</span><span className="font-medium text-gray-700 truncate" title={loc.name}>{loc.name}</span></div><span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full text-xs flex-shrink-0">{loc.value}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                {/* List Kecamatan */}
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col h-80">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center flex-shrink-0 border-b pb-2 border-gray-200"><MapPin className="w-3 h-3 mr-1 text-green-500" /> Kecamatan</h4>
+                    <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                        {topLocationLists.subdistricts.length === 0 ? <p className="text-xs text-gray-400 italic text-center mt-10">Data tidak cukup</p> : 
+                        topLocationLists.subdistricts.map((loc, idx) => (
+                            <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-white hover:shadow-sm rounded transition-all">
+                                <div className="flex items-center gap-2 min-w-0"><span className={`text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0 ${idx < 3 ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>#{idx+1}</span><span className="font-medium text-gray-700 truncate" title={loc.name}>{loc.name}</span></div><span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full text-xs flex-shrink-0">{loc.value}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    )}
+{/* --- CHART LAINNYA --- */}
+    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+        <h3 className="text-xl font-semibold mb-6 text-gray-800 border-b pb-2 flex items-center"><Clock className="w-5 h-5 mr-2 text-purple-600" /> Analisis Jam Belanja Tersibuk (Waktu Order Dibuat)</h3>
+        <div className="h-80 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={hourlyActivityData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}><defs><linearGradient id="colorHour" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/><stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" /><XAxis dataKey="hour" tick={{ fontSize: 12 }} interval={2} /><YAxis tick={{ fontSize: 12 }} /><Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} itemStyle={{ color: '#6d28d9', fontWeight: 'bold' }} formatter={(value) => [`${value} Transaksi`, 'Aktivitas']} /><Area type="monotone" dataKey="count" stroke="#7c3aed" strokeWidth={3} fillOpacity={1} fill="url(#colorHour)" name="Jumlah Order" activeDot={{ r: 6, strokeWidth: 0 }} /></AreaChart></ResponsiveContainer></div>
+        <p className="text-center text-xs text-gray-500 mt-4 italic">Grafik ini menunjukkan distribusi waktu saat pelanggan membuat pesanan (Checkout/Draft) dalam rentang waktu terpilih.</p>
+    </div>
 
-                    {/* List Kecamatan */}
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col h-80">
-                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center flex-shrink-0 border-b pb-2 border-gray-200">
-                            <MapPin className="w-3 h-3 mr-1 text-green-500" /> Kecamatan
-                        </h4>
-                         <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                            {topLocationLists.subdistricts.length === 0 ? <p className="text-xs text-gray-400 italic text-center mt-10">Data tidak cukup</p> : 
-                            topLocationLists.subdistricts.map((loc, idx) => (
-                                <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-white hover:shadow-sm rounded transition-all">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <span className={`text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0 ${idx < 3 ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>#{idx+1}</span>
-                                        <span className="font-medium text-gray-700 truncate" title={loc.name}>{loc.name}</span>
-                                    </div>
-                                    <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full text-xs flex-shrink-0">{loc.value}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </div>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><CreditCard className="w-5 h-5 mr-2 text-blue-600" /> Distribusi Metode Pembayaran</h3>
+            <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={paymentMethodChartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">{paymentMethodChartData.map((entry, index) => (<Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />))}</Pie><Tooltip formatter={(val) => `${val} Order`} /><Legend layout="vertical" verticalAlign="bottom" align="center" wrapperStyle={{fontSize: '11px'}} /></PieChart></ResponsiveContainer></div>
+        </div>
+        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><UserCheck className="w-5 h-5 mr-2 text-green-600" /> Tipe Pelanggan (New vs Repeat)</h3>
+            <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={customerTypeChartData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}>{customerTypeChartData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.name.includes('NEW') || entry.name.includes('BARU') ? '#3B82F6' : '#10B981'} />))}</Pie><Tooltip formatter={(val) => `${val} Orang`} /><Legend verticalAlign="bottom" height={36}/></PieChart></ResponsiveContainer></div>
+            <p className="text-center text-[10px] text-gray-400 mt-2">Perbandingan Pelanggan Baru vs Pelanggan Lama</p>
+        </div>
+    </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                <h3 className="text-xl font-semibold mb-6 text-gray-800 border-b pb-2 flex items-center">
-                    <Clock className="w-5 h-5 mr-2 text-purple-600" />
-                    Analisis Jam Belanja Tersibuk (Waktu Order Dibuat)
-                </h3>
-                <div className="h-80 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={hourlyActivityData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                            <defs>
-                                <linearGradient id="colorHour" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
-                                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                            <XAxis dataKey="hour" tick={{ fontSize: 12 }} interval={2} />
-                            <YAxis tick={{ fontSize: 12 }} />
-                            <Tooltip 
-                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                                itemStyle={{ color: '#6d28d9', fontWeight: 'bold' }}
-                                formatter={(value) => [`${value} Transaksi`, 'Aktivitas']}
-                            />
-                            <Area type="monotone" dataKey="count" stroke="#7c3aed" strokeWidth={3} fillOpacity={1} fill="url(#colorHour)" name="Jumlah Order" activeDot={{ r: 6, strokeWidth: 0 }} />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </div>
-                <p className="text-center text-xs text-gray-500 mt-4 italic">
-                    Grafik ini menunjukkan distribusi waktu saat pelanggan membuat pesanan (Checkout/Draft) dalam rentang waktu terpilih.
-                </p>
-            </div>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Landmark className="w-5 h-5 mr-2 text-teal-600" /> Top Financial Entity (Bank/Layanan)</h3>
+            <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={financialEntityChartData.slice(0, 8)} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}><CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f0f0f0" /><XAxis type="number" hide /><YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} /><Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} formatter={(val) => [`${val} Order`, 'Jumlah']} cursor={{fill: '#f0fdfa'}} /><Bar dataKey="value" name="Jumlah Order" fill="#0D9488" radius={[0, 4, 4, 0]} barSize={20}><LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" /></Bar></BarChart></ResponsiveContainer></div>
+            <p className="text-center text-[10px] text-gray-400 mt-2 italic">Top 8 Bank/Layanan Pembayaran</p>
+        </div>
+        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Globe className="w-5 h-5 mr-2 text-orange-600" /> Top Sumber Trafik (UTM Source)</h3>
+            <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={utmSourceChartData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}><CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f0f0f0" /><XAxis type="number" hide /><YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} /><Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} formatter={(val) => [`${val} Order`, 'Jumlah']} cursor={{fill: '#fff7ed'}} /><Bar dataKey="value" name="Jumlah Order" fill="#F97316" radius={[0, 4, 4, 0]} barSize={20}><LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" /></Bar></BarChart></ResponsiveContainer></div>
+            <p className="text-center text-[10px] text-gray-400 mt-2 italic">Top 5 Sumber Trafik Terbanyak</p>
+        </div>
+    </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                        <CreditCard className="w-5 h-5 mr-2 text-blue-600" />
-                        Distribusi Metode Pembayaran
-                    </h3>
-                    <div className="h-64 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={paymentMethodChartData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {paymentMethodChartData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip formatter={(val) => `${val} Order`} />
-                                <Legend layout="vertical" verticalAlign="bottom" align="center" wrapperStyle={{fontSize: '11px'}} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
+    {/* --- TABEL TRANSAKSI HARIAN --- */}
+    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+            <h3 className="text-xl font-semibold text-gray-800 flex items-center"><List className="w-5 h-5 mr-2 text-indigo-600" /> Detail Transaksi Harian <span className="ml-3 text-xs font-bold bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full border border-indigo-200">Total: {tableData.length} Order</span></h3>
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                <div className="relative"><input type="text" placeholder="Cari Order ID / Nama..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-64 text-sm" /><Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" /></div>
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer"><option value="All">Semua Status</option><option value="completed">Completed</option><option value="confirmed">Confirmed</option><option value="pending">Pending</option><option value="canceled">Canceled</option><option value="rts">RTS</option></select>
+                <button onClick={handleExportDailyReport} disabled={tableData.length === 0} className={`flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-colors ${tableData.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}><Download className="w-4 h-4 mr-2" /> Export CSV</button>
+            </div>
+        </div>
+        
+        <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                    <tr>
+                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-12">No.</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Order ID / Tgl</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Pelanggan</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Produk</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Total</th>
+                    </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                    {currentTableData.length > 0 ? currentTableData.map((item, index) => (
+                        <tr key={index} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-500 align-top">{(currentPage - 1) * itemsPerPage + index + 1}.</td>
+                            <td className="px-6 py-4 whitespace-nowrap align-top">
+                                <div className="text-sm font-bold text-indigo-600">{item[COL_ORDER_ID]}</div>
+                                <div className="text-xs text-gray-500 mt-1">{item[COL_CONFIRMED_TIME] || item['draft_time']}</div>
+                            </td>
+                            <td className="px-6 py-4 align-top">
+                                <div className="text-sm font-medium text-gray-900">{item[COL_NAME]}</div>
+                                <div className="text-xs text-gray-500 mt-0.5">
+                                    {isDigitalMode ? (item['email'] || '-') : `${item[COL_CITY] || ''}, ${item[COL_PROVINCE] || ''}`}
+                                </div>
+                                {customerSegmentMap.has(item[COL_NAME]) && (<span className={`inline-flex mt-1 items-center px-2 py-0.5 rounded text-[10px] font-bold text-white ${customerSegmentMap.get(item[COL_NAME]).color}`}>{customerSegmentMap.get(item[COL_NAME]).name}</span>)}
+                            </td>
+                            <td className="px-6 py-4 align-top"><div className="text-xs text-gray-700 max-w-xs line-clamp-2" title={getProductSummary(item)}>{getProductSummary(item)}</div></td>
+                            <td className="px-6 py-4 whitespace-nowrap align-top"><span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full`} style={{ backgroundColor: (STATUS_COLORS[(item['order_status']||'').toLowerCase()] || '#94a3b8') + '20', color: STATUS_COLORS[(item['order_status']||'').toLowerCase()] || '#1e293b' }}>{(item['order_status'] || 'Unknown').toUpperCase()}</span></td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-gray-900 align-top">{formatRupiah(item[COL_NET_REVENUE] || 0)}</td>
+                        </tr>
+                    )) : (<tr><td colSpan="6" className="px-6 py-10 text-center text-gray-500 italic">Tidak ada data ditemukan untuk periode/filter ini.</td></tr>)}
+                </tbody>
+            </table>
+        </div>
 
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                        <UserCheck className="w-5 h-5 mr-2 text-green-600" />
-                        Tipe Pelanggan (New vs Repeat)
-                    </h3>
-                    <div className="h-64 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={customerTypeChartData}
-                                    cx="50%"
-                                    cy="50%"
-                                    outerRadius={80}
-                                    dataKey="value"
-                                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                                >
-                                    {customerTypeChartData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.name.includes('NEW') || entry.name.includes('BARU') ? '#3B82F6' : '#10B981'} />
-                                    ))}
-                                </Pie>
-                                <Tooltip formatter={(val) => `${val} Orang`} />
-                                <Legend verticalAlign="bottom" height={36}/>
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <p className="text-center text-[10px] text-gray-400 mt-2">Perbandingan Pelanggan Baru vs Pelanggan Lama</p>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                        <Landmark className="w-5 h-5 mr-2 text-teal-600" />
-                        Top Financial Entity (Bank/Layanan)
-                    </h3>
-                    <div className="h-64 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={financialEntityChartData.slice(0, 8)} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f0f0f0" />
-                                <XAxis type="number" hide />
-                                <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} />
-                                <Tooltip 
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                                    formatter={(val) => [`${val} Order`, 'Jumlah']} 
-                                    cursor={{fill: '#f0fdfa'}} 
-                                />
-                                <Bar dataKey="value" name="Jumlah Order" fill="#0D9488" radius={[0, 4, 4, 0]} barSize={20}>
-                                    <LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" />
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <p className="text-center text-[10px] text-gray-400 mt-2 italic">Top 8 Bank/Layanan Pembayaran</p>
-                </div>
-
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                        <Globe className="w-5 h-5 mr-2 text-orange-600" />
-                        Top Sumber Trafik (UTM Source)
-                    </h3>
-                    <div className="h-64 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={utmSourceChartData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f0f0f0" />
-                                <XAxis type="number" hide />
-                                <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} />
-                                <Tooltip 
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                                    formatter={(val) => [`${val} Order`, 'Jumlah']} 
-                                    cursor={{fill: '#fff7ed'}} 
-                                />
-                                <Bar dataKey="value" name="Jumlah Order" fill="#F97316" radius={[0, 4, 4, 0]} barSize={20}>
-                                    <LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" />
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <p className="text-center text-[10px] text-gray-400 mt-2 italic">Top 5 Sumber Trafik Terbanyak</p>
-                </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-                    <h3 className="text-xl font-semibold text-gray-800 flex items-center">
-                        <List className="w-5 h-5 mr-2 text-indigo-600" />
-                        Detail Transaksi Harian
-                        <span className="ml-3 text-xs font-bold bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full border border-indigo-200">
-                            Total: {tableData.length} Order
-                        </span>
-                    </h3>
-                    <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                        <div className="relative">
-                            <input type="text" placeholder="Cari Order ID / Nama..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-64 text-sm" />
-                            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-                        </div>
-                        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer">
-                            <option value="All">Semua Status</option>
-                            <option value="completed">Completed</option>
-                            <option value="confirmed">Confirmed</option>
-                            <option value="pending">Pending</option>
-                            <option value="canceled">Canceled</option>
-                            <option value="rts">RTS</option>
-                        </select>
-                        <button 
-                            onClick={handleExportDailyReport} 
-                            disabled={tableData.length === 0}
-                            className={`flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-colors ${tableData.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}
-                        >
-                            <Download className="w-4 h-4 mr-2" />
-                            Export CSV
-                        </button>
-                    </div>
-                </div>
-                
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-12">No.</th>
-                                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Order ID / Tgl</th>
-                                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Pelanggan</th>
-                                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Produk</th>
-                                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Total</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {currentTableData.length > 0 ? currentTableData.map((item, index) => (
-                                <tr key={index} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-500 align-top">
-                                        {(currentPage - 1) * itemsPerPage + index + 1}.
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap align-top">
-                                        <div className="text-sm font-bold text-indigo-600">{item[COL_ORDER_ID]}</div>
-                                        <div className="text-xs text-gray-500 mt-1">{item[COL_CONFIRMED_TIME] || item['draft_time']}</div>
-                                    </td>
-                                    <td className="px-6 py-4 align-top">
-                                        <div className="text-sm font-medium text-gray-900">{item[COL_NAME]}</div>
-                                        <div className="text-xs text-gray-500 mt-0.5">{item[COL_CITY] ? `${item[COL_CITY]}, ` : ''}{item[COL_PROVINCE]}</div>
-                                        {customerSegmentMap.has(item[COL_NAME]) && (
-                                            <span className={`inline-flex mt-1 items-center px-2 py-0.5 rounded text-[10px] font-bold text-white ${customerSegmentMap.get(item[COL_NAME]).color}`}>
-                                                {customerSegmentMap.get(item[COL_NAME]).name}
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 align-top">
-                                        <div className="text-xs text-gray-700 max-w-xs line-clamp-2" title={getProductSummary(item)}>
-                                            {getProductSummary(item)}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap align-top">
-                                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full`} style={{ backgroundColor: (STATUS_COLORS[(item['order_status']||'').toLowerCase()] || '#94a3b8') + '20', color: STATUS_COLORS[(item['order_status']||'').toLowerCase()] || '#1e293b' }}>
-                                            {(item['order_status'] || 'Unknown').toUpperCase()}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-gray-900 align-top">
-                                        {formatRupiah(item[COL_NET_REVENUE] || 0)}
-                                    </td>
-                                </tr>
-                            )) : (
-                                <tr><td colSpan="6" className="px-6 py-10 text-center text-gray-500 italic">Tidak ada data ditemukan untuk periode/filter ini.</td></tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-
-                <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-4">
-                    <div className="flex flex-1 justify-between sm:hidden">
-                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Previous</button>
-                        <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Next</button>
-                    </div>
-                    <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                        <div>
-                            <p className="text-sm text-gray-700">
-                                Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, tableData.length)}</span> of <span className="font-medium">{tableData.length}</span> results
-                            </p>
-                        </div>
-                        <div>
-                            <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"><ChevronLeft className="h-5 w-5" /></button>
-                                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">Prev</button>
-                                <span className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300 focus:outline-offset-0">Page {currentPage} of {totalPages}</span>
-                                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">Next</button>
-                                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"><ChevronRight className="h-5 w-5" /></button>
-                            </nav>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-4">
+            <div className="flex flex-1 justify-between sm:hidden">
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Previous</button>
+                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Next</button>
+            </div>
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div><p className="text-sm text-gray-700">Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, tableData.length)}</span> of <span className="font-medium">{tableData.length}</span> results</p></div>
+                <div><nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination"><button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"><ChevronLeft className="h-5 w-5" /></button><button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">Prev</button><span className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300 focus:outline-offset-0">Page {currentPage} of {totalPages}</span><button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">Next</button><button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"><ChevronRight className="h-5 w-5" /></button></nav></div>
+            </div>
+        </div>
+    </div>
+</div>
     );
 };
 
-const RecoveryAnalysisView = ({ rawData }) => {
-    const [filterIssue, setFilterIssue] = useState('All');
-    const [filterValue, setFilterValue] = useState('All');
-    const [searchTerm, setSearchTerm] = useState('');
-    const [clickedChats, setClickedChats] = useState(new Set());
-    
-    // --- NEW: Template State ---
-    const [showTemplateModal, setShowTemplateModal] = useState(false);
-    const [templates, setTemplates] = useState({
-        Stuck: "Halo Kak {name}, kami lihat pesanan kakak belum selesai pembayarannya. Apakah ada kendala saat transfer? Kami bantu ya kak 🙏",
-        Pending: "Halo Kak {name}, kami rindu nih! Pesanannya masih tersimpan aman di sistem kami. Mau dilanjut pengirimannya kak?",
-        RTS: "Halo Kak {name}, mohon maaf, paket kakak statusnya retur/gagal kirim. Boleh dibantu alamat lengkap yang baru untuk kami kirim ulang?",
-        Canceled: "Halo Kak {name}, terima kasih sudah mampir. Ada yang bisa kami bantu seputar pesanan sebelumnya?",
-        Default: "Halo Kak {name}, ada yang bisa kami bantu untuk pesanannya?"
-    });
+const RecoveryAnalysisView = ({ rawData, isDigitalMode }) => {
+    // State Filter
+    const [filterIssue, setFilterIssue] = useState('All');
+    const [filterValue, setFilterValue] = useState('All');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [startDate, setStartDate] = useState(''); // State Tanggal Mulai
+    const [endDate, setEndDate] = useState('');     // State Tanggal Akhir
+    const [clickedChats, setClickedChats] = useState(new Set());
+    
+    // State Template Chat
+    const [showTemplateModal, setShowTemplateModal] = useState(false);
+    const [templates, setTemplates] = useState({
+        Stuck: "Halo Kak {name}, kami lihat pesanan kakak belum selesai pembayarannya. Apakah ada kendala saat transfer? Kami bantu ya kak 🙏",
+        Pending: "Halo Kak {name}, kami rindu nih! Pesanannya masih tersimpan aman di sistem kami. Mau dilanjut pengirimannya kak?",
+        RTS: "Halo Kak {name}, mohon maaf, paket kakak statusnya retur/gagal kirim. Boleh dibantu alamat lengkap yang baru untuk kami kirim ulang?",
+        Canceled: "Halo Kak {name}, terima kasih sudah mampir. Ada yang bisa kami bantu seputar pesanan sebelumnya?",
+        Default: "Halo Kak {name}, ada yang bisa kami bantu untuk pesanannya?"
+    });
 
-    const { abandonedOrders, rtsOrders, canceledOrders, stuckPendingOrders, totalLostPotential, highRiskLocations } = useMemo(() => {
-        const today = new Date();
-        const abandoned = [];
-        const rts = [];
-        const canceled = [];
-        const stuck = []; 
-        
-        let lostRevenue = 0;
+    const TemplateEditor = () => {
+        if (!showTemplateModal) return null;
+        return (
+            <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex justify-center items-center z-50 p-4">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6 transform transition-all max-h-[90vh] overflow-y-auto">
+                    <div className="flex justify-between items-center mb-6 border-b pb-4">
+                        <h3 className="text-xl font-bold text-gray-800 flex items-center">
+                            <MessageSquare className="w-6 h-6 mr-2 text-indigo-600" /> Kustomisasi Script Pesan WA
+                        </h3>
+                        <button onClick={() => setShowTemplateModal(false)} className="text-gray-400 hover:text-gray-600"><XCircle className="w-6 h-6" /></button>
+                    </div>
+                    <div className="space-y-6">
+                        {Object.keys(templates).map((key) => (
+                            <div key={key}>
+                                <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Script: {key}</label>
+                                <textarea value={templates[key]} onChange={(e) => setTemplates({...templates, [key]: e.target.value})} className="w-full p-3 border border-gray-300 rounded-lg text-sm" rows={3} />
+                            </div>
+                        ))}
+                    </div>
+                    <div className="mt-8 flex justify-end gap-3 pt-4 border-t">
+                        <button onClick={() => setShowTemplateModal(false)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors">Simpan & Tutup</button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
-        const provStats = {};
-        const cityStats = {};
-        const subStats = {};
-        
-        rawData.forEach(order => {
-            const status = (order['order_status'] || '').toLowerCase();
-            const dateStr = order['draft_time'] || order['pending_time'];
-            if (!dateStr) return;
-            
-            const orderDate = new Date(dateStr.replace(' ', 'T'));
-            if (isNaN(orderDate.getTime())) return;
+    // --- LOGIKA ANALISIS UTAMA (DENGAN FILTER TANGGAL) ---
+    const { abandonedOrders, rtsOrders, canceledOrders, stuckPendingOrders, totalLostPotential, highRiskLocations, topProblematicProducts, topProblematicSources, topProblematicPayments, topProblematicFinancialEntities, recoveryInsights } = useMemo(() => {
+        const today = new Date();
+        
+        // Setup Filter Tanggal
+        const start = startDate ? new Date(startDate) : new Date('1970-01-01'); start.setHours(0,0,0,0);
+        const end = endDate ? new Date(endDate) : new Date('2099-12-31'); end.setHours(23,59,59,999);
 
-            const diffTime = Math.abs(today - orderDate);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-            const revenue = parseFloat(order[COL_NET_REVENUE] || 0);
+        const abandoned = [], rts = [], canceled = [], stuck = [];
+        let lostRevenue = 0;
+        
+        const provStats = {}, cityStats = {}, subStats = {};
+        const prodStats = {}, sourceStats = {}, paymentStats = {}, financialStats = {};
 
-            if (status === 'canceled' || status === 'rts' || (status === 'pending' && diffDays > 7)) {
-                const p = (order[COL_PROVINCE] || 'Unknown').trim();
-                const c = (order[COL_CITY] || 'Unknown').trim();
-                const s = (order[COL_SUBDISTRICT] || 'Unknown').trim();
+        const updateLocStats = (storage, key, revenue) => {
+            if (!storage[key]) storage[key] = { name: key, count: 0, totalRevenue: 0 };
+            storage[key].count += 1;
+            storage[key].totalRevenue += revenue;
+        };
 
-                if (p && p !== '-') provStats[p] = (provStats[p] || 0) + 1;
-                if (c && c !== '-') cityStats[c] = (cityStats[c] || 0) + 1;
-                if (s && s !== '-') subStats[s] = (subStats[s] || 0) + 1;
-            }
+        const updateDetailStats = (storage, key, revenue) => {
+             if (!storage[key]) storage[key] = { name: key, total: 0, totalRevenue: 0 };
+             storage[key].total += 1;
+             storage[key].totalRevenue += revenue;
+        };
 
-            if (status === 'pending' && diffDays >= 3 && diffDays <= 7) {
-                stuck.push({ ...order, daysSince: diffDays, issueType: 'Stuck Pending' });
-                lostRevenue += revenue;
-            }
-            else if (status === 'pending' && diffDays > 7) {
-                abandoned.push({ ...order, daysSince: diffDays, issueType: 'Pending (> 7 Hari)' });
-                lostRevenue += revenue;
-            }
-            else if (status === 'rts') {
-                rts.push({ ...order, daysSince: diffDays, issueType: 'RTS (Retur)' });
-                lostRevenue += revenue;
-            }
-            else if (status === 'canceled') {
-                canceled.push({ ...order, daysSince: diffDays, issueType: 'Canceled' });
-                lostRevenue += revenue;
-            }
-        });
+        rawData.forEach(order => {
+            const status = (order['order_status'] || '').toLowerCase();
+            const dateStr = order['draft_time'] || order['pending_time'];
+            if (!dateStr) return;
+            
+            const orderDate = new Date(dateStr.replace(' ', 'T'));
+            if (isNaN(orderDate.getTime())) return;
 
-        const getTop10 = (stats) => Object.entries(stats)
-            .map(([name, count]) => ({ name, count }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 10);
+            // --- FILTER TANGGAL DISINI ---
+            if (orderDate < start || orderDate > end) return; 
+            // -----------------------------
+            
+            const diffDays = Math.ceil(Math.abs(today - orderDate) / (1000 * 60 * 60 * 24));
+            const revenue = parseFloat(order[COL_NET_REVENUE] || 0);
+            let isProblem = false;
 
-        const sortFn = (a, b) => (b[COL_NET_REVENUE] || 0) - (a[COL_NET_REVENUE] || 0);
-        
-        return {
-            abandonedOrders: abandoned.sort(sortFn),
-            rtsOrders: rts.sort(sortFn),
-            canceledOrders: canceled.sort(sortFn),
-            stuckPendingOrders: stuck.sort(sortFn),
-            totalLostPotential: lostRevenue,
-            highRiskLocations: {
-                provinces: getTop10(provStats),
-                cities: getTop10(cityStats),
-                subdistricts: getTop10(subStats)
-            }
-        };
-    }, [rawData]);
+            if (status === 'pending' && diffDays >= 3 && diffDays <= 7) { stuck.push({ ...order, daysSince: diffDays, issueType: 'Stuck Pending' }); lostRevenue += revenue; isProblem = true; }
+            else if (status === 'pending' && diffDays > 7) { abandoned.push({ ...order, daysSince: diffDays, issueType: 'Pending (> 7 Hari)' }); lostRevenue += revenue; isProblem = true; }
+            else if (!isDigitalMode && status === 'rts') { rts.push({ ...order, daysSince: diffDays, issueType: 'RTS (Retur)' }); lostRevenue += revenue; isProblem = true; }
+            else if (status === 'canceled') { canceled.push({ ...order, daysSince: diffDays, issueType: 'Canceled' }); lostRevenue += revenue; isProblem = true; }
 
-    const { topProblematicProducts, topProblematicSources, topProblematicPayments, topProblematicFinancialEntities } = useMemo(() => {
-        const prodStats = {};
-        const sourceStats = {};
-        const paymentStats = {};
-        const financialStats = {}; 
-        
-        const updateStats = (storage, key, type) => {
-            if (!storage[key]) storage[key] = { name: key, total: 0, cancelRts: 0, pending: 0 };
-            storage[key].total += 1;
-            if (type === 'cancel_rts') storage[key].cancelRts += 1;
-            if (type === 'pending') storage[key].pending += 1;
-        };
+            if (isProblem) {
+                // Lokasi (Hanya Fisik)
+                if (!isDigitalMode) {
+                    const p = (order[COL_PROVINCE] || 'Unknown').trim();
+                    const c = (order[COL_CITY] || 'Unknown').trim();
+                    const s = (order[COL_SUBDISTRICT] || 'Unknown').trim();
+                    
+                    if (p && p !== '-') updateLocStats(provStats, p, revenue);
+                    if (c && c !== '-') updateLocStats(cityStats, c, revenue);
+                    if (s && s !== '-') updateLocStats(subStats, s, revenue);
+                }
+                
+                // Produk
+                Object.keys(order).forEach(k => { if (k.startsWith('variant:') && parseFloat(order[k]) > 0) {
+                    const n = k.replace('variant:', '').replace(/_/g, ' ').toUpperCase();
+                    updateDetailStats(prodStats, n, revenue);
+                }});
+                
+                // Sumber Trafik
+                let src = (order[COL_UTM_SOURCE] || 'Organic/Direct').trim();
+                if (!src || src === '-' || src === '') src = 'Organic/Direct';
+                updateDetailStats(sourceStats, src.charAt(0).toUpperCase() + src.slice(1), revenue);
 
-        const processOrders = (orders, type) => {
-            orders.forEach(order => {
-                Object.keys(order).forEach(key => {
-                    if (key.startsWith('variant:') && parseFloat(order[key]) > 0) {
-                        const rawName = key.replace('variant:', '').replace(/_/g, ' ').toUpperCase();
-                        updateStats(prodStats, rawName, type);
-                    }
-                });
+                // Metode Bayar
+                let pay = (order[COL_PAYMENT_METHOD] || order['epayment_provider'] || 'Lainnya').trim();
+                if (!pay || pay === '-') pay = 'Lainnya';
+                updateDetailStats(paymentStats, pay.toUpperCase().replace('_', ' '), revenue);
 
-                let source = (order[COL_UTM_SOURCE] || 'Organic/Direct').trim();
-                if (!source || source === '-' || source === '') source = 'Organic/Direct';
-                source = source.charAt(0).toUpperCase() + source.slice(1);
-                updateStats(sourceStats, source, type);
+                // Bank
+                let fin = (order[COL_FINANCIAL_ENTITY] || '').trim();
+                if (fin && fin !== '-' && fin.toLowerCase() !== 'unknown') updateDetailStats(financialStats, fin.toUpperCase(), revenue);
+            }
+        });
 
-                let payment = (order[COL_PAYMENT_METHOD] || order['epayment_provider'] || 'Lainnya').trim();
-                if (!payment || payment === '-') payment = 'Lainnya';
-                payment = payment.toUpperCase().replace('_', ' ');
-                updateStats(paymentStats, payment, type);
+        const getTopLoc = (s, lim=5) => Object.values(s).sort((a,b)=>b.count-a.count).slice(0, lim);
+        const getList = (s, lim=5) => Object.values(s).sort((a,b)=>b.total-a.total).slice(0, lim);
+        
+        const issues = [
+            { name: 'Stuck Pending', count: stuck.length }, { name: 'Pending Lama', count: abandoned.length },
+            { name: 'RTS', count: rts.length }, { name: 'Canceled', count: canceled.length }
+        ].reduce((a,b) => a.count > b.count ? a : b);
+        
+        const safeTop = (list) => list.length > 0 ? list[0] : { name: '-', count: 0, total: 0 };
+        const topProvList = getTopLoc(provStats, 10);
+        const topCityList = getTopLoc(cityStats, 10);
+        const topSubList = getTopLoc(subStats, 10);
+        
+        const topProdList = getList(prodStats, 10);
+        const topSrcList = getList(sourceStats, 5);
+        const topPayList = getList(paymentStats, 5);
+        const topFinList = getList(financialStats, 5);
 
-                let entity = (order[COL_FINANCIAL_ENTITY] || '').trim();
-                if (entity && entity !== '-' && entity.toLowerCase() !== 'unknown') {
-                    entity = entity.toUpperCase();
-                    updateStats(financialStats, entity, type);
-                }
-            });
-        };
+        const recoveryInsights = {
+            issueName: issues.name, issueCount: issues.count,
+            provName: safeTop(topProvList).name, provCount: safeTop(topProvList).count,
+            cityName: safeTop(topCityList).name, cityCount: safeTop(topCityList).count,
+            subName: safeTop(topSubList).name, subCount: safeTop(topSubList).count,
+            prodName: safeTop(topProdList).name, prodCount: safeTop(topProdList).total,
+            sourceName: safeTop(topSrcList).name, sourceCount: safeTop(topSrcList).total,
+            payName: safeTop(topPayList).name, payCount: safeTop(topPayList).total,
+            finName: safeTop(topFinList).name, finCount: safeTop(topFinList).total
+        };
 
-        processOrders([...canceledOrders, ...rtsOrders], 'cancel_rts');
-        processOrders(abandonedOrders, 'pending');
+        return {
+            abandonedOrders: abandoned.sort((a,b)=>b[COL_NET_REVENUE]-a[COL_NET_REVENUE]),
+            rtsOrders: rts.sort((a,b)=>b[COL_NET_REVENUE]-a[COL_NET_REVENUE]),
+            canceledOrders: canceled.sort((a,b)=>b[COL_NET_REVENUE]-a[COL_NET_REVENUE]),
+            stuckPendingOrders: stuck.sort((a,b)=>b[COL_NET_REVENUE]-a[COL_NET_REVENUE]),
+            totalLostPotential: lostRevenue,
+            highRiskLocations: { provinces: topProvList, cities: topCityList, subdistricts: topSubList },
+            topProblematicProducts: topProdList,
+            topProblematicSources: topSrcList,
+            topProblematicPayments: topPayList,
+            topProblematicFinancialEntities: topFinList,
+            recoveryInsights 
+        };
+    }, [rawData, isDigitalMode, startDate, endDate]); // Dependency ditambahkan
 
-        const getTopList = (statsObj, limit = 5) => Object.values(statsObj).sort((a, b) => b.total - a.total).slice(0, limit);
+    const allIssues = [...stuckPendingOrders, ...abandonedOrders, ...rtsOrders, ...canceledOrders];
+    const filteredIssues = useMemo(() => {
+        return allIssues.filter(item => {
+            if (filterIssue !== 'All' && !item.issueType.includes(filterIssue)) return false;
+            if (filterValue === 'High' && (item[COL_NET_REVENUE] || 0) < 500000) return false;
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                return (item[COL_NAME]||'').toLowerCase().includes(term) || (item[COL_PHONE]||'').toLowerCase().includes(term) || (item[COL_ORDER_ID]||'').toLowerCase().includes(term);
+            }
+            return true;
+        });
+    }, [allIssues, filterIssue, filterValue, searchTerm]);
 
-        return {
-            topProblematicProducts: getTopList(prodStats, 10),
-            topProblematicSources: getTopList(sourceStats, 5),
-            topProblematicPayments: getTopList(paymentStats, 5),
-            topProblematicFinancialEntities: getTopList(financialStats, 5)
-        };
-    }, [canceledOrders, rtsOrders, abandonedOrders]);
+    const getWhatsAppLink = (item, productName) => {
+        const phone = item[COL_PHONE];
+        if (!phone) return null;
+        let p = phone.toString().replace(/[^0-9]/g, '');
+        if (p.startsWith('08')) p = '62' + p.substring(1); else if (p.startsWith('8')) p = '62' + p;
+        if (p.length < 10) return null; 
+        
+        let k = 'Default';
+        if (item.issueType.includes('Stuck')) k = 'Stuck';
+        else if (item.issueType.includes('Pending')) k = 'Pending';
+        else if (item.issueType.includes('RTS')) k = 'RTS';
+        else if (item.issueType.includes('Canceled')) k = 'Canceled';
 
-    const allIssues = [...stuckPendingOrders, ...abandonedOrders, ...rtsOrders, ...canceledOrders];
+        let msg = templates[k].replace(/{name}/g, item[COL_NAME]||'Kak').replace(/{product}/g, productName||'Produk').replace(/{value}/g, formatRupiah(item[COL_NET_REVENUE]||0)).replace(/{phone}/g, item[COL_PHONE]||'').replace(/{address}/g, item[COL_ADDRESS]||'').replace(/{subdistrict}/g, item[COL_SUBDISTRICT]||'');
+        return `https://wa.me/${p}?text=${encodeURIComponent(msg)}`;
+    };
 
-    const filteredIssues = useMemo(() => {
-        return allIssues.filter(item => {
-            if (filterIssue !== 'All' && !item.issueType.includes(filterIssue)) return false;
-            if (filterValue === 'High' && (item[COL_NET_REVENUE] || 0) < 500000) return false;
-            if (searchTerm) {
-                const lowerTerm = searchTerm.toLowerCase();
-                const name = (item[COL_NAME] || '').toLowerCase();
-                const phone = (item[COL_PHONE] || '').toLowerCase();
-                const id = (item[COL_ORDER_ID] || '').toLowerCase();
-                return name.includes(lowerTerm) || phone.includes(lowerTerm) || id.includes(lowerTerm);
-            }
-            return true;
-        });
-    }, [allIssues, filterIssue, filterValue, searchTerm]);
+    const handleChatClick = (id) => setClickedChats(prev => new Set(prev).add(id));
 
-    const recoveryInsights = useMemo(() => {
-        const issues = [
-            { name: 'Stuck Pending (3-7 Hari)', count: stuckPendingOrders.length },
-            { name: 'Pending (> 7 Hari)', count: abandonedOrders.length },
-            { name: 'RTS (Retur)', count: rtsOrders.length },
-            { name: 'Canceled (Batal)', count: canceledOrders.length }
-        ];
-        const dominantIssue = issues.reduce((max, curr) => curr.count > max.count ? curr : max, issues[0]);
+    // --- EXPORT CSV ---
+    const handleExportRecovery = () => {
+        if (filteredIssues.length === 0) { alert("Tidak ada data untuk diekspor."); return; }
+        let locationHeaders = [];
+        if (isDigitalMode) { locationHeaders = ["Email"]; } else { locationHeaders = ["Alamat Lengkap", "Kecamatan", "Kota/Kab", "Provinsi"]; }
+        const headers = ["No", "Order ID", "Tipe Isu", "Status", "Nama Pelanggan", "No HP", ...locationHeaders, "Produk", "Nilai (IDR)", "Link WA"];
+        const q = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`; 
+        const rows = filteredIssues.map((item, index) => {
+            const variantKey = Object.keys(item).find(k => k.startsWith('variant:') && item[k] > 0);
+            const prodName = variantKey ? variantKey.replace('variant:', '').replace(/_/g, ' ') : '-';
+            const waLink = getWhatsAppLink(item, prodName) || '-';
+            let locationData = [];
+            if (isDigitalMode) { locationData = [q(item.email || '-')]; } else {
+                locationData = [q(item[COL_ADDRESS] || '-'), q(item[COL_SUBDISTRICT] || '-'), q(item[COL_CITY] || '-'), q(item[COL_PROVINCE] || '-')];
+            }
+            return [index + 1, q(item[COL_ORDER_ID]), q(item.issueType), q(item.order_status), q(item[COL_NAME]), q(item[COL_PHONE]), ...locationData, q(prodName), item[COL_NET_REVENUE] || 0, q(waLink)].join(",");
+        });
+        const csvContent = [headers.join(","), ...rows].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Recovery_Data_${isDigitalMode ? 'Digital' : 'Fisik'}_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
-        const topProv = highRiskLocations.provinces.length > 0 ? highRiskLocations.provinces[0] : { name: '-', count: 0 };
-        const topCity = highRiskLocations.cities.length > 0 ? highRiskLocations.cities[0] : { name: '-', count: 0 };
-        const topSub = highRiskLocations.subdistricts.length > 0 ? highRiskLocations.subdistricts[0] : { name: '-', count: 0 };
+    return (
+        <div className="space-y-8 animate-fade-in">
+            <TemplateEditor />
+            
+            {/* --- HEADER WARNING --- */}
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm">
+                <div className="flex justify-between items-center">
+                    <div className="flex">
+                        <div className="flex-shrink-0"><AlertTriangle className="h-5 w-5 text-red-500" /></div>
+                        <div className="ml-3">
+                            <h3 className="text-sm font-medium text-red-800">Zona Recovery & Retensi</h3>
+                            <p className="mt-1 text-sm text-red-700">Prioritaskan order <strong>Stuck Pending (3-7 Hari)</strong> untuk di-follow up segera.</p>
+                        </div>
+                    </div>
+                    
+                    {/* INPUT FILTER TANGGAL */}
+                    <div className="hidden sm:flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-red-200">
+                        <span className="text-[10px] font-bold text-red-500 uppercase">Filter Tgl:</span>
+                        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="text-xs border-none focus:ring-0 text-gray-600 bg-transparent p-0"/>
+                        <span className="text-gray-400">-</span>
+                        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="text-xs border-none focus:ring-0 text-gray-600 bg-transparent p-0"/>
+                        {(startDate || endDate) && <button onClick={()=>{setStartDate('');setEndDate('');}} className="text-red-500 hover:bg-red-50 rounded p-1"><XCircle className="w-3 h-3"/></button>}
+                    </div>
+                </div>
+            </div>
 
-        const topProd = topProblematicProducts.length > 0 ? topProblematicProducts[0] : { name: '-', total: 0 };
-        const topSource = topProblematicSources.length > 0 ? topProblematicSources[0] : { name: '-', total: 0 };
-        const topPay = topProblematicPayments.length > 0 ? topProblematicPayments[0] : { name: '-', total: 0 };
-        const topFin = topProblematicFinancialEntities.length > 0 ? topProblematicFinancialEntities[0] : { name: '-', total: 0 };
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-red-100">
+                    <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2"><Zap className="w-4 h-4 mr-2 text-yellow-600" /> Prioritas Penanganan (High Impact)</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <StatCard compact title="Potensi Omzet Hilang" value={formatRupiah(totalLostPotential)} icon={DollarSign} color="#EF4444" />
+                        <StatCard compact title="Stuck Pending (3-7 Hari)" value={stuckPendingOrders.length} icon={Zap} color="#10B981" unit="Hot Leads" />
+                    </div>
+                </div>
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-red-100">
+                    <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2"><XCircle className="w-4 h-4 mr-2 text-red-600" /> Analisis Kegagalan</h3>
+                    <div className={`grid grid-cols-1 ${!isDigitalMode ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3`}>
+                        <StatCard compact title="Pending (> 7 Hari)" value={abandonedOrders.length} icon={Clock} color="#F59E0B" unit="Order" />
+                        {!isDigitalMode && <StatCard compact title="RTS (Retur)" value={rtsOrders.length} icon={Truck} color="#DC2626" unit="Order" />}
+                        <StatCard compact title="Canceled (Batal)" value={canceledOrders.length} icon={XCircle} color="#6B7280" unit="Order" />
+                    </div>
+                </div>
+            </div>
 
-        return {
-            issueName: dominantIssue.name,
-            issueCount: dominantIssue.count,
-            provName: topProv.name,
-            provCount: topProv.count,
-            cityName: topCity.name,
-            cityCount: topCity.count,
-            subName: topSub.name,
-            subCount: topSub.count,
-            prodName: topProd.name,
-            prodCount: topProd.total,
-            sourceName: topSource.name,
-            sourceCount: topSource.total,
-            payName: topPay.name,
-            payCount: topPay.total,
-            finName: topFin.name,
-            finCount: topFin.total,
-            totalPotential: totalLostPotential
-        };
-    }, [stuckPendingOrders, abandonedOrders, rtsOrders, canceledOrders, highRiskLocations, topProblematicProducts, topProblematicSources, topProblematicPayments, topProblematicFinancialEntities, totalLostPotential]);
+            <div className="bg-gradient-to-r from-red-50 via-orange-50 to-pink-50 p-6 rounded-xl shadow-md border border-red-100">
+                <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4"><Activity className="w-5 h-5 mr-2 text-red-600" /> Kesimpulan Analisis Risiko & Recovery</h3>
+                <div className={`grid grid-cols-1 sm:grid-cols-2 ${isDigitalMode ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4 mb-4`}>
+                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Isu Paling Dominan</p>
+                        <p className="text-sm font-bold text-red-700 line-clamp-1">{recoveryInsights.issueName}</p>
+                        <p className="text-xs text-gray-500 font-semibold mt-1">{recoveryInsights.issueCount.toLocaleString()} Kasus</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Produk Sering Bermasalah</p>
+                        <p className="text-sm font-bold text-gray-800 line-clamp-2 leading-tight" title={recoveryInsights.prodName}>{recoveryInsights.prodName}</p>
+                        <p className="text-xs text-orange-600 font-semibold mt-1">{recoveryInsights.prodCount.toLocaleString()} Total Isu</p>
+                    </div>
+                    {!isDigitalMode && (
+                        <>
+                            <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
+                                <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Provinsi Paling Rawan</p>
+                                <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.provName}</p>
+                                <p className="text-xs text-red-600 font-semibold mt-1">{recoveryInsights.provCount.toLocaleString()} Isu</p>
+                            </div>
+                            <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
+                                <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Kota/Kab Paling Rawan</p>
+                                <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.cityName}</p>
+                                <p className="text-xs text-red-600 font-semibold mt-1">{recoveryInsights.cityCount.toLocaleString()} Isu</p>
+                            </div>
+                            <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
+                                <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Kecamatan Paling Rawan</p>
+                                <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.subName}</p>
+                                <p className="text-xs text-red-600 font-semibold mt-1">{recoveryInsights.subCount.toLocaleString()} Isu</p>
+                            </div>
+                        </>
+                    )}
+                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Sumber Trafik Berisiko</p>
+                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.sourceName}</p>
+                        <p className="text-xs text-gray-500 font-semibold mt-1">{recoveryInsights.sourceCount.toLocaleString()} Kasus</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Metode Bayar Kendala</p>
+                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.payName}</p>
+                        <p className="text-xs text-purple-600 font-semibold mt-1">{recoveryInsights.payCount.toLocaleString()} Kasus</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Bank/VA Sering Gagal</p>
+                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.finName}</p>
+                        <p className="text-xs text-blue-600 font-semibold mt-1">{recoveryInsights.finCount.toLocaleString()} Kasus</p>
+                    </div>
+                </div>
+                <div className="bg-white/60 p-4 rounded-lg border border-red-100 text-sm text-gray-700 leading-relaxed shadow-inner">
+                    <p>
+                        <span className="font-bold text-red-700">💡 Strategi Recovery:</span> Isu terbesar saat ini adalah <strong>{recoveryInsights.issueName}</strong>. 
+                        {!isDigitalMode && <> Waspadai pengiriman ke <strong>{recoveryInsights.cityName}</strong> (Kec. {recoveryInsights.subName}). </>}
+                        Produk <strong>{recoveryInsights.prodName}</strong> memiliki tingkat kegagalan tertinggi. 
+                        Cek efektivitas iklan di <strong>{recoveryInsights.sourceName}</strong>, serta stabilitas pembayaran <strong>{recoveryInsights.payName}</strong> ({recoveryInsights.finName}).
+                    </p>
+                </div>
+            </div>
 
-    const handleExportRecovery = () => {
-        if (filteredIssues.length === 0) { alert("Tidak ada data recovery."); return; }
-        const headers = ["No", "Order ID", "Tipe Masalah", "Status", "Nama Pelanggan", "No HP (WA)", "Alamat Lengkap", "Kecamatan", "Kabupaten/Kota", "Provinsi", "Total Nilai", "Hari Sejak Order", "Produk"];
-        const rows = filteredIssues.map((order, index) => {
-            const clean = (t) => `"${(t || '').toString().replace(/"/g, '""')}"`;
-            const variantKey = Object.keys(order).find(k => k.startsWith('variant:') && order[k] > 0);
-            const prodName = variantKey ? variantKey.replace('variant:', '').replace(/_/g, ' ') : 'N/A';
-            
-            return [
-                index + 1,
-                clean(order[COL_ORDER_ID]),
-                clean(order.issueType),
-                clean(order['order_status']),
-                clean(order[COL_NAME]),
-                clean(order[COL_PHONE]), 
-                clean(order[COL_ADDRESS]),
-                clean(order[COL_SUBDISTRICT]),
-                clean(order[COL_CITY]),
-                clean(order[COL_PROVINCE]),
-                order[COL_NET_REVENUE],
-                order.daysSince,
-                clean(prodName)
-            ].join(",");
-        });
-        const csvContent = [headers.join(","), ...rows].join("\n");
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `Data_Recovery_Isu_${new Date().toISOString().slice(0,10)}.csv`);
-        document.body.appendChild(link); link.click(); document.body.removeChild(link);
-    };
+            {/* --- ZONA MERAH (ADA TOTAL REVENUE) --- */}
+            {!isDigitalMode && highRiskLocations.provinces.length > 0 && (
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2"><MapPin className="w-5 h-5 mr-2 text-red-600" /> Zona Merah: Top 10 Lokasi Sering Batal / Retur (High Risk)</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {['Provinsi', 'Kota/Kab', 'Kecamatan'].map((title, i) => {
+                            const data = i === 0 ? highRiskLocations.provinces : i === 1 ? highRiskLocations.cities : highRiskLocations.subdistricts;
+                            return (
+                                <div key={title} className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col h-80">
+                                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center flex-shrink-0">{title}</h4>
+                                    <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                                        {data.map((loc, idx) => (
+                                            <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-gray-100 rounded transition-colors">
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="font-medium text-gray-700 truncate max-w-[120px]" title={loc.name}>{idx+1}. {loc.name}</span>
+                                                    <span className="text-[10px] text-red-500 font-semibold">{formatRupiah(loc.totalRevenue)}</span>
+                                                </div>
+                                                <span className="font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full text-xs flex-shrink-0">{loc.count}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
-    // --- UPDATED: Dynamic WhatsApp Link Generator ---
-    const getWhatsAppLink = (item, productName) => {
-        const phone = item[COL_PHONE];
-        if (!phone) return null;
-        let p = phone.toString().replace(/[^0-9]/g, '');
-        if (p.startsWith('08')) p = '62' + p.substring(1);
-        else if (p.startsWith('8')) p = '62' + p;
-        if (p.length < 10) return null; 
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2"><TrendingDown className="w-5 h-5 mr-2 text-orange-600" /> Top Sumber Iklan</h3>
+                    <div className="space-y-3">{topProblematicSources.map((s,i)=>(<div key={i} className="flex justify-between items-center bg-orange-50 p-3 rounded-lg"><div className="flex gap-3"><span className="text-xs font-bold bg-orange-400 text-white w-6 h-6 flex items-center justify-center rounded-full">#{i+1}</span><div><p className="text-sm font-semibold text-gray-800">{s.name}</p></div></div><div className="text-right"><p className="text-lg font-extrabold text-orange-600">{s.total}</p><p className="text-[10px] font-bold text-red-500 mt-0.5">{formatRupiah(s.totalRevenue)}</p></div></div>))}</div>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2"><CreditCard className="w-5 h-5 mr-2 text-purple-600" /> Top Metode Bayar</h3>
+                    <div className="space-y-3">{topProblematicPayments.map((p,i)=>(<div key={i} className="flex justify-between items-center bg-purple-50 p-3 rounded-lg"><div className="flex gap-3"><span className="text-xs font-bold bg-purple-400 text-white w-6 h-6 flex items-center justify-center rounded-full">#{i+1}</span><div><p className="text-sm font-semibold text-gray-800">{p.name}</p></div></div><div className="text-right"><p className="text-lg font-extrabold text-purple-600">{p.total}</p><p className="text-[10px] font-bold text-red-500 mt-0.5">{formatRupiah(p.totalRevenue)}</p></div></div>))}</div>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2"><Landmark className="w-5 h-5 mr-2 text-blue-600" /> Top Bank/Layanan</h3>
+                    <div className="space-y-3">{topProblematicFinancialEntities.map((f,i)=>(<div key={i} className="flex justify-between items-center bg-blue-50 p-3 rounded-lg"><div className="flex gap-3"><span className="text-xs font-bold bg-blue-400 text-white w-6 h-6 flex items-center justify-center rounded-full">#{i+1}</span><div><p className="text-sm font-semibold text-gray-800">{f.name}</p></div></div><div className="text-right"><p className="text-lg font-extrabold text-blue-600">{f.total}</p><p className="text-[10px] font-bold text-red-500 mt-0.5">{formatRupiah(f.totalRevenue)}</p></div></div>))}</div>
+                </div>
+            </div>
 
-        let templateKey = 'Default';
-        const issueType = item.issueType || '';
-        
-        if (issueType.includes('Stuck')) templateKey = 'Stuck';
-        else if (issueType.includes('Pending')) templateKey = 'Pending';
-        else if (issueType.includes('RTS')) templateKey = 'RTS';
-        else if (issueType.includes('Canceled')) templateKey = 'Canceled';
+            {/* TOP 10 PRODUK (ADA TOTAL REVENUE) */}
+            {topProblematicProducts.length > 0 && (
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2"><AlertTriangle className="w-5 h-5 mr-2 text-red-600" /> Top 10 Produk Bermasalah (Sering Batal / Macet)</h3>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {topProblematicProducts.map((prod, idx) => (
+                            <div key={idx} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
+                                <div className="flex items-center gap-3 overflow-hidden">
+                                    <span className={`text-xs font-bold text-white w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full ${idx<3?'bg-red-500':'bg-gray-400'}`}>#{idx+1}</span>
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-bold text-gray-800 truncate max-w-[200px]" title={prod.name}>{prod.name}</p>
+                                    </div>
+                                </div>
+                                <div className="text-right flex-shrink-0 ml-2">
+                                    <p className="text-xl font-extrabold text-gray-800">{prod.total}</p>
+                                    <p className="text-[10px] font-bold text-red-500 mt-0.5">{formatRupiah(prod.totalRevenue)}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
-        let message = templates[templateKey] || templates['Default'];
-        
-        // Variable Replacements
-        message = message.replace(/{name}/g, item[COL_NAME] || 'Kak');
-        message = message.replace(/{phone}/g, item[COL_PHONE] || '');
-        message = message.replace(/{address}/g, item[COL_ADDRESS] || '');
-        message = message.replace(/{subdistrict}/g, item[COL_SUBDISTRICT] || '');
-        message = message.replace(/{product}/g, productName || 'Produk');
-        message = message.replace(/{value}/g, formatRupiah(item[COL_NET_REVENUE] || 0));
-
-        return `https://wa.me/${p}?text=${encodeURIComponent(message)}`;
-    };
-
-    const copyToClipboard = (text) => {
-        const textArea = document.createElement("textarea");
-        textArea.value = text;
-        document.body.appendChild(textArea);
-        textArea.select();
-        try { document.execCommand('copy'); alert('Nomor HP berhasil disalin!'); } catch (err) { alert('Gagal menyalin.'); }
-        document.body.removeChild(textArea);
-    };
-
-    const handleChatClick = (id) => {
-        setClickedChats(prev => {
-            const newSet = new Set(prev);
-            newSet.add(id);
-            return newSet;
-        });
-    };
-
-    // --- NEW: Template Editor Component ---
-    const TemplateEditor = () => {
-        if (!showTemplateModal) return null;
-        return (
-            <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex justify-center items-center z-50 p-4">
-                <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6 transform transition-all max-h-[90vh] overflow-y-auto">
-                    <div className="flex justify-between items-center mb-6 border-b pb-4">
-                        <h3 className="text-xl font-bold text-gray-800 flex items-center">
-                            <MessageSquare className="w-6 h-6 mr-2 text-indigo-600" /> 
-                            Kustomisasi Script Pesan WA
-                        </h3>
-                        <button onClick={() => setShowTemplateModal(false)} className="text-gray-400 hover:text-gray-600">
-                            <XCircle className="w-6 h-6" />
-                        </button>
-                    </div>
-                    
-                    <div className="space-y-6">
-                        <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800 border border-blue-200">
-                            <p className="font-bold mb-2 flex items-center"><Info className="w-4 h-4 mr-1"/> Variabel Otomatis (Copy & Paste):</p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                <div className="flex items-center"><code className="bg-white px-2 py-0.5 rounded border border-blue-200 font-mono font-bold mr-2 text-blue-600">{'{name}'}</code> <span className="text-xs">Nama Pelanggan</span></div>
-                                <div className="flex items-center"><code className="bg-white px-2 py-0.5 rounded border border-blue-200 font-mono font-bold mr-2 text-blue-600">{'{product}'}</code> <span className="text-xs">Nama Produk</span></div>
-                                <div className="flex items-center"><code className="bg-white px-2 py-0.5 rounded border border-blue-200 font-mono font-bold mr-2 text-blue-600">{'{value}'}</code> <span className="text-xs">Total Nilai Order (Rp)</span></div>
-                                <div className="flex items-center"><code className="bg-white px-2 py-0.5 rounded border border-blue-200 font-mono font-bold mr-2 text-blue-600">{'{subdistrict}'}</code> <span className="text-xs">Kecamatan</span></div>
-                                <div className="flex items-center"><code className="bg-white px-2 py-0.5 rounded border border-blue-200 font-mono font-bold mr-2 text-blue-600">{'{address}'}</code> <span className="text-xs">Alamat Lengkap</span></div>
-                                <div className="flex items-center"><code className="bg-white px-2 py-0.5 rounded border border-blue-200 font-mono font-bold mr-2 text-blue-600">{'{phone}'}</code> <span className="text-xs">No WhatsApp</span></div>
-                            </div>
-                        </div>
-
-                        {Object.keys(templates).map((key) => (
-                            <div key={key}>
-                                <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">
-                                    Script: {key === 'Stuck' ? 'Stuck Pending (Hot Leads)' : key}
-                                </label>
-                                <textarea 
-                                    value={templates[key]} 
-                                    onChange={(e) => setTemplates({...templates, [key]: e.target.value})}
-                                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                                    rows={3}
-                                />
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="mt-8 flex justify-end gap-3 pt-4 border-t">
-                        <button onClick={() => setShowTemplateModal(false)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors">
-                            Simpan & Tutup
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
-    };
-
-    return (
-        <div className="space-y-8">
-            <TemplateEditor />
-            <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm">
-                <div className="flex">
-                    <div className="flex-shrink-0"><AlertTriangle className="h-5 w-5 text-red-500" /></div>
-                    <div className="ml-3">
-                        <h3 className="text-sm font-medium text-red-800">Zona Recovery & Retensi</h3>
-                        <div className="mt-2 text-sm text-red-700">
-                            <p>Halaman ini berisi daftar pesanan yang memerlukan perhatian khusus. Prioritaskan <strong>Stuck Pending (3-7 Hari)</strong> karena peluang closing masih tinggi (Hot Leads).</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-red-100">
-                    <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2">
-                        <Zap className="w-4 h-4 mr-2 text-yellow-600" />
-                        Prioritas Penanganan (High Impact)
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <StatCard compact title="Potensi Omzet Hilang" value={formatRupiah(totalLostPotential)} icon={DollarSign} color="#EF4444" />
-                        <StatCard compact title="Stuck Pending (3-7 Hari)" value={stuckPendingOrders.length} icon={Zap} color="#10B981" unit="Hot Leads" description="Peluang Closing Tinggi" />
-                    </div>
-                </div>
-
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-red-100">
-                    <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2">
-                        <XCircle className="w-4 h-4 mr-2 text-red-600" />
-                        Analisis Kegagalan & Retur
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <StatCard compact title="Pending (> 7 Hari)" value={abandonedOrders.length} icon={Clock} color="#F59E0B" unit="Order" />
-                        <StatCard compact title="RTS (Retur)" value={rtsOrders.length} icon={Truck} color="#DC2626" unit="Order" />
-                        <StatCard compact title="Canceled (Batal)" value={canceledOrders.length} icon={XCircle} color="#6B7280" unit="Order" />
-                    </div>
-                </div>
-            </div>
-
-            <div className="bg-gradient-to-r from-red-50 via-orange-50 to-pink-50 p-6 rounded-xl shadow-md border border-red-100">
-                <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4">
-                    <Activity className="w-5 h-5 mr-2 text-red-600" />
-                    Kesimpulan Analisis Risiko & Recovery
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Isu Paling Dominan</p>
-                        <p className="text-sm font-bold text-red-700 line-clamp-1">{recoveryInsights.issueName}</p>
-                        <p className="text-xs text-gray-500 font-semibold mt-1">{recoveryInsights.issueCount.toLocaleString()} Kasus</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Provinsi Paling Rawan</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.provName}</p>
-                        <p className="text-xs text-red-600 font-semibold mt-1">{recoveryInsights.provCount.toLocaleString()} Isu</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Kota/Kab Paling Rawan</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.cityName}</p>
-                        <p className="text-xs text-red-600 font-semibold mt-1">{recoveryInsights.cityCount.toLocaleString()} Isu</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Kecamatan Paling Rawan</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.subName}</p>
-                        <p className="text-xs text-red-600 font-semibold mt-1">{recoveryInsights.subCount.toLocaleString()} Isu</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Produk Sering Bermasalah</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-2 leading-tight" title={recoveryInsights.prodName}>{recoveryInsights.prodName}</p>
-                        <p className="text-xs text-orange-600 font-semibold mt-1">{recoveryInsights.prodCount.toLocaleString()} Total Isu</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Sumber Trafik Berisiko</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.sourceName}</p>
-                        <p className="text-xs text-gray-500 font-semibold mt-1">{recoveryInsights.sourceCount.toLocaleString()} Kasus</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Metode Bayar Kendala</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.payName}</p>
-                        <p className="text-xs text-purple-600 font-semibold mt-1">{recoveryInsights.payCount.toLocaleString()} Kasus</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Bank/VA Sering Gagal</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.finName}</p>
-                        <p className="text-xs text-blue-600 font-semibold mt-1">{recoveryInsights.finCount.toLocaleString()} Kasus</p>
-                    </div>
-                </div>
-                
-                <div className="bg-white/60 p-4 rounded-lg border border-red-100 text-sm text-gray-700 leading-relaxed shadow-inner">
-                    <p>
-                        <span className="font-bold text-red-700">💡 Strategi Recovery:</span> Prioritaskan penanganan pada isu <strong>{recoveryInsights.issueName}</strong>. 
-                        Perketat validasi pengiriman ke area <strong>{recoveryInsights.cityName}</strong> (khususnya Kec. {recoveryInsights.subName}) dan pantau pesanan produk <strong>{recoveryInsights.prodName}</strong>.
-                        Cek stabilitas gateway pembayaran untuk metode <strong>{recoveryInsights.payName}</strong> dan bank <strong>{recoveryInsights.finName}</strong> karena rasio kegagalan/pending yang tinggi.
-                    </p>
-                </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2">
-                    <MapPin className="w-5 h-5 mr-2 text-red-600" />
-                    Zona Merah: Top 10 Lokasi Sering Batal / Retur / Pending Lama (High Risk)
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col h-80">
-                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center flex-shrink-0"><Globe className="w-3 h-3 mr-1" /> Provinsi</h4>
-                        <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                            {highRiskLocations.provinces.length === 0 ? <p className="text-xs text-gray-400 italic text-center mt-10">Data tidak cukup</p> : 
-                            highRiskLocations.provinces.map((loc, idx) => (
-                                <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-gray-100 rounded transition-colors">
-                                    <span className="font-medium text-gray-700 truncate max-w-[120px]" title={loc.name}>{idx+1}. {loc.name}</span>
-                                    <span className="font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full text-xs flex-shrink-0">{loc.count}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col h-80">
-                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center flex-shrink-0"><MapPin className="w-3 h-3 mr-1" /> Kota/Kabupaten</h4>
-                         <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                            {highRiskLocations.cities.length === 0 ? <p className="text-xs text-gray-400 italic text-center mt-10">Data tidak cukup</p> : 
-                            highRiskLocations.cities.map((loc, idx) => (
-                                <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-gray-100 rounded transition-colors">
-                                    <span className="font-medium text-gray-700 truncate max-w-[120px]" title={loc.name}>{idx+1}. {loc.name}</span>
-                                    <span className="font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full text-xs flex-shrink-0">{loc.count}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col h-80">
-                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center flex-shrink-0"><MapPin className="w-3 h-3 mr-1" /> Kecamatan</h4>
-                         <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                            {highRiskLocations.subdistricts.length === 0 ? <p className="text-xs text-gray-400 italic text-center mt-10">Data tidak cukup</p> : 
-                            highRiskLocations.subdistricts.map((loc, idx) => (
-                                <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-gray-100 rounded transition-colors">
-                                    <span className="font-medium text-gray-700 truncate max-w-[120px]" title={loc.name}>{idx+1}. {loc.name}</span>
-                                    <span className="font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full text-xs flex-shrink-0">{loc.count}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                 <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2">
-                        <TrendingDown className="w-5 h-5 mr-2 text-orange-600" />
-                        Top Sumber Iklan (Batal/Pending)
-                    </h3>
-                    <div className="space-y-3">
-                        {topProblematicSources.length === 0 ? <p className="text-sm text-gray-500 italic">Data tidak cukup</p> :
-                        topProblematicSources.map((source, idx) => (
-                            <div key={idx} className="flex justify-between items-center bg-orange-50 p-3 rounded-lg border border-orange-100">
-                                <div className="flex items-center gap-3">
-                                    <span className="text-xs font-bold text-white bg-orange-400 w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full">#{idx + 1}</span>
-                                    <div>
-                                        <p className="text-sm font-semibold text-gray-800">{source.name}</p>
-                                        <div className="flex gap-2 mt-1 text-[9px]">
-                                            {source.cancelRts > 0 && <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-semibold border border-red-200">Batal: {source.cancelRts}</span>}
-                                            {source.pending > 0 && <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-semibold border border-orange-200">Pending: {source.pending}</span>}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-lg font-extrabold text-orange-600">{source.total}</p>
-                                    <p className="text-[10px] text-gray-500 uppercase font-bold">Total</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2">
-                        <CreditCard className="w-5 h-5 mr-2 text-purple-600" />
-                        Top Metode Bayar (Batal/Pending)
-                    </h3>
-                    <div className="space-y-3">
-                        {topProblematicPayments.length === 0 ? <p className="text-sm text-gray-500 italic">Data tidak cukup</p> :
-                        topProblematicPayments.map((pay, idx) => (
-                            <div key={idx} className="flex justify-between items-center bg-purple-50 p-3 rounded-lg border border-purple-100">
-                                <div className="flex items-center gap-3">
-                                    <span className="text-xs font-bold text-white bg-purple-400 w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full">#{idx + 1}</span>
-                                    <div>
-                                        <p className="text-sm font-semibold text-gray-800 max-w-[150px] truncate" title={pay.name}>{pay.name}</p>
-                                        <div className="flex gap-2 mt-1 text-[9px]">
-                                            {pay.cancelRts > 0 && <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-semibold border border-red-200">Batal: {pay.cancelRts}</span>}
-                                            {pay.pending > 0 && <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-semibold border border-orange-200">Pending: {pay.pending}</span>}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-lg font-extrabold text-purple-600">{pay.total}</p>
-                                    <p className="text-[10px] text-gray-500 uppercase font-bold">Total</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2">
-                        <Landmark className="w-5 h-5 mr-2 text-blue-600" />
-                        Top Bank/Layanan (Batal/Pending)
-                    </h3>
-                    <div className="space-y-3">
-                        {topProblematicFinancialEntities.length === 0 ? <p className="text-sm text-gray-500 italic">Data tidak cukup</p> :
-                        topProblematicFinancialEntities.map((fin, idx) => (
-                            <div key={idx} className="flex justify-between items-center bg-blue-50 p-3 rounded-lg border border-blue-100">
-                                <div className="flex items-center gap-3">
-                                    <span className="text-xs font-bold text-white bg-blue-400 w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full">#{idx + 1}</span>
-                                    <div>
-                                        <p className="text-sm font-semibold text-gray-800 max-w-[150px] truncate" title={fin.name}>{fin.name}</p>
-                                        <div className="flex gap-2 mt-1 text-[9px]">
-                                            {fin.cancelRts > 0 && <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-semibold border border-red-200">Batal: {fin.cancelRts}</span>}
-                                            {fin.pending > 0 && <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-semibold border border-orange-200">Pending: {fin.pending}</span>}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-lg font-extrabold text-blue-600">{fin.total}</p>
-                                    <p className="text-[10px] text-gray-500 uppercase font-bold">Total</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {topProblematicProducts.length > 0 && (
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2">
-                        <AlertTriangle className="w-5 h-5 mr-2 text-red-600" />
-                        Top 10 Produk Paling Bermasalah (Sering Batal / Macet)
-                    </h3>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        {topProblematicProducts.map((prod, idx) => (
-                            <div key={idx} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
-                                <div className="flex items-center gap-3 overflow-hidden">
-                                    <span className={`text-xs font-bold text-white w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full ${idx < 3 ? 'bg-red-500' : 'bg-gray-400'}`}>
-                                        #{idx + 1}
-                                    </span>
-                                    <div className="min-w-0">
-                                        <p className="text-sm font-bold text-gray-800 truncate max-w-[200px] sm:max-w-[250px]" title={prod.name}>
-                                            {prod.name}
-                                        </p>
-                                        <div className="flex gap-2 mt-1 text-[10px]">
-                                            {prod.cancelRts > 0 && (
-                                                <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-semibold border border-red-200">
-                                                    Batal/Retur: {prod.cancelRts}
-                                                </span>
-                                            )}
-                                            {prod.pending > 0 && (
-                                                <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-semibold border border-orange-200">
-                                                    Pending Lama: {prod.pending}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="text-right flex-shrink-0 ml-2">
-                                    <p className="text-xl font-extrabold text-gray-800">{prod.total}</p>
-                                    <p className="text-[9px] text-gray-500 uppercase font-bold">Total Isu</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                <div className="flex flex-col mb-6 gap-4">
-                    <div className="flex justify-between items-center border-b pb-2">
-                        <h3 className="text-lg font-bold text-gray-800 flex items-center">
-                            <RefreshCw className="w-5 h-5 mr-2 text-indigo-600" />
-                            Daftar Prioritas Follow-Up (WA Blast)
-                        </h3>
-                        <div className="flex items-center gap-3">
-                            <button 
-                                onClick={() => setShowTemplateModal(true)}
-                                className="flex items-center px-3 py-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors"
-                            >
-                                <MessageSquare className="w-4 h-4 mr-2" />
-                                Atur Template Pesan
-                            </button>
-                            <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded">Total: {filteredIssues.length} Order</span>
-                        </div>
-                    </div>
-                    
-                    <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
-                        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                            <div className="flex items-center space-x-2">
-                                <span className="text-xs font-bold text-gray-600 uppercase">Tipe:</span>
-                                <select 
-                                    value={filterIssue} 
-                                    onChange={(e) => setFilterIssue(e.target.value)} 
-                                    className="bg-white border border-gray-300 text-gray-700 text-sm rounded-md focus:ring-indigo-500 focus:border-indigo-500 block p-1.5"
-                                >
-                                    <option value="All">Semua Masalah</option>
-                                    <option value="Stuck">Stuck Pending (3-7 Hari)</option>
-                                    <option value="Pending (> 7 Hari)">Pending ({'>'}7 Hari)</option>
-                                    <option value="RTS">RTS (Retur)</option>
-                                    <option value="Canceled">Canceled (Batal)</option>
-                                </select>
-                            </div>
-
-                            <div className="flex items-center space-x-2">
-                                <span className="text-xs font-bold text-gray-600 uppercase">Nilai:</span>
-                                <select 
-                                    value={filterValue} 
-                                    onChange={(e) => setFilterValue(e.target.value)} 
-                                    className="bg-white border border-gray-300 text-gray-700 text-sm rounded-md focus:ring-indigo-500 focus:border-indigo-500 block p-1.5"
-                                >
-                                    <option value="All">Semua Nilai</option>
-                                    <option value="High">Big Order ({'>'} 500rb)</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-3 w-full sm:w-auto">
-                            <div className="relative w-full sm:w-64">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-4 w-4 text-gray-400" /></div>
-                                <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Cari Nama / HP / Order ID..." className="block w-full pl-10 pr-3 py-1.5 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"/>
-                                {searchTerm && (<button onClick={() => setSearchTerm('')} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"><XCircle className="h-4 w-4" /></button>)}
-                            </div>
-                            <button onClick={handleExportRecovery} disabled={filteredIssues.length === 0} className={`flex items-center px-4 py-1.5 text-sm font-semibold rounded-md shadow-sm transition-colors whitespace-nowrap ${filteredIssues.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}><Download className="w-4 h-4 mr-2" />Export</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="overflow-x-auto max-h-[600px]">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50 sticky top-0 z-10">
-                            <tr>
-                                <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-10">No.</th>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Tipe Isu</th>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Pelanggan</th>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Lokasi Kirim</th>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Produk Utama</th>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Nilai Order</th>
-                                <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Aksi WA</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {filteredIssues.length === 0 ? (
-                                <tr><td colSpan="7" className="px-6 py-10 text-center text-gray-500 italic">Tidak ada isu yang ditemukan sesuai filter.</td></tr>
-                            ) : (
-                                filteredIssues.map((item, idx) => {
-                                    const variantKey = Object.keys(item).find(k => k.startsWith('variant:') && item[k] > 0);
-                                    const prodName = variantKey ? variantKey.replace('variant:', '').replace(/_/g, ' ') : '-';
-                                    
-                                    // Use updated getWhatsAppLink with 2 arguments
-                                    const waLink = getWhatsAppLink(item, prodName);
-                                    
-                                    const isHighValue = (item[COL_NET_REVENUE] || 0) > 500000;
-                                    const isClicked = clickedChats.has(item[COL_ORDER_ID]);
-
-                                    return (
-                                    <tr key={idx} className={`transition-colors ${item.issueType.includes('Stuck') ? 'bg-green-50 hover:bg-green-100' : 'hover:bg-red-50'}`}>
-                                        <td className="px-4 py-3 text-center text-sm font-bold text-gray-600 align-top">
-                                            {idx + 1}.
-                                        </td>
-                                        <td className="px-4 py-3 whitespace-nowrap align-top">
-                                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${item.issueType.includes('Stuck') ? 'bg-green-100 text-green-800 border border-green-200' : item.issueType.includes('RTS') ? 'bg-red-100 text-red-800' : item.issueType.includes('Pending') ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                {item.issueType}
-                                            </span>
-                                            <div className="text-[10px] text-gray-500 mt-1 pl-1">{item.daysSince} hari lalu</div>
-                                        </td>
-                                        <td className="px-4 py-3 text-sm font-medium text-gray-900 align-top">
-                                            <div>{item[COL_NAME]}</div>
-                                            <div className="flex items-center gap-1 mt-0.5">
-                                                <span className="text-xs text-gray-500 font-mono select-all">{item[COL_PHONE] || '-'}</span>
-                                                {item[COL_PHONE] && (
-                                                    <button onClick={() => copyToClipboard(item[COL_PHONE])} className="text-gray-400 hover:text-indigo-600" title="Copy No HP">
-                                                        <ClipboardCopy className="w-3 h-3" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-gray-700 align-top max-w-[200px]">
-                                            <div className="font-medium text-gray-900 mb-1 leading-snug">{item[COL_ADDRESS] || '-'}</div>
-                                            <div className="font-semibold">{item[COL_SUBDISTRICT] || '-'}</div>
-                                            <div>{item[COL_CITY] || '-'}</div>
-                                            <div className="text-gray-500 italic">{item[COL_PROVINCE] || '-'}</div>
-                                        </td>
-                                        <td className="px-4 py-3 text-xs font-medium text-gray-700 max-w-[150px] truncate align-top" title={prodName}>
-                                            {prodName}
-                                        </td>
-                                        <td className="px-4 py-3 align-top">
-                                            <div className={`text-sm font-bold ${isHighValue ? 'text-red-600' : 'text-gray-900'}`}>
-                                                {formatRupiah(parseFloat(item[COL_NET_REVENUE]))}
-                                            </div>
-                                            {isHighValue && <span className="text-[9px] font-bold text-white bg-red-500 px-1.5 rounded-sm">BIG ORDER</span>}
-                                        </td>
-                                        <td className="px-4 py-3 text-center align-top">
-                                            {waLink ? (
-                                                <a 
-                                                    href={waLink} 
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    onClick={() => handleChatClick(item[COL_ORDER_ID])}
-                                                    className={`inline-flex items-center px-3 py-1.5 text-white text-xs font-bold rounded-full transition-colors shadow-sm whitespace-nowrap ${isClicked ? 'bg-gray-400 hover:bg-gray-500 cursor-default' : 'bg-green-500 hover:bg-green-600'}`}
-                                                >
-                                                    {isClicked ? <CheckCircle className="w-3 h-3 mr-1" /> : <MessageSquare className="w-3 h-3 mr-1" />}
-                                                    {isClicked ? 'Sudah Follow-up' : 'Chat WA'}
-                                                </a>
-                                            ) : (
-                                                <span className="text-gray-400 text-xs italic">No Phone</span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                )})
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    );
+            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                <div className="flex flex-col mb-6 gap-4">
+                    <div className="flex justify-between items-center border-b pb-2">
+                        <h3 className="text-lg font-bold text-gray-800 flex items-center"><RefreshCw className="w-5 h-5 mr-2 text-indigo-600" /> Daftar Prioritas Follow-Up</h3>
+                        <button onClick={() => setShowTemplateModal(true)} className="flex items-center px-3 py-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 rounded-lg"><MessageSquare className="w-4 h-4 mr-2" /> Atur Template</button>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <div className="flex gap-3 w-full sm:w-auto">
+                            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Cari Nama / HP / Order ID..." className="block w-full sm:w-64 px-3 py-1.5 border border-gray-300 rounded-md text-sm"/>
+                            <select value={filterIssue} onChange={(e) => setFilterIssue(e.target.value)} className="bg-white border border-gray-300 text-gray-700 text-sm rounded-md p-1.5 cursor-pointer">
+                                <option value="All">Semua Masalah</option><option value="Stuck">Stuck Pending</option><option value="Pending">Pending Lama</option>
+                                {!isDigitalMode && <option value="RTS">RTS (Retur)</option>}
+                                <option value="Canceled">Canceled</option>
+                            </select>
+                        </div>
+                        <button onClick={handleExportRecovery} disabled={filteredIssues.length === 0} className={`flex items-center px-4 py-2 text-sm font-bold text-white rounded-lg shadow-sm transition-colors ${filteredIssues.length === 0 ? 'bg-gray-300 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}>
+                            <Download className="w-4 h-4 mr-2" /> Export CSV
+                        </button>
+                    </div>
+                </div>
+                <div className="overflow-x-auto max-h-[600px]">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50 sticky top-0 z-10">
+                            <tr>
+                                <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase w-10">No.</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Tipe Isu</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Pelanggan</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">{isDigitalMode ? "Email" : "Lokasi Kirim"}</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Produk</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Nilai</th>
+                                <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase">Aksi WA</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {filteredIssues.map((item, idx) => {
+                                const variantKey = Object.keys(item).find(k => k.startsWith('variant:') && item[k] > 0);
+                                const prodName = variantKey ? variantKey.replace('variant:', '').replace(/_/g, ' ') : '-';
+                                const waLink = getWhatsAppLink(item, prodName);
+                                const isClicked = clickedChats.has(item[COL_ORDER_ID]);
+                                return (
+                                    <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                                        <td className="px-4 py-3 text-center text-sm text-gray-600">{idx + 1}.</td>
+                                        <td className="px-4 py-3"><span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${item.issueType.includes('Stuck') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{item.issueType}</span><div className="text-[10px] text-gray-500 mt-1">{item.daysSince} hari lalu</div></td>
+                                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{item[COL_NAME]}<div className="text-xs text-gray-500">{item[COL_PHONE]}</div></td>
+                                        <td className="px-4 py-3 text-xs text-gray-700">{isDigitalMode ? (item.email || '-') : <>{item[COL_CITY] || '-'}<br/>{item[COL_PROVINCE] || '-'}</>}</td>
+                                        <td className="px-4 py-3 text-xs text-gray-700 max-w-[150px] truncate">{prodName}</td>
+                                        <td className="px-4 py-3 text-sm font-bold text-gray-900">{formatRupiah(item[COL_NET_REVENUE])}</td>
+                                        <td className="px-4 py-3 text-center">{waLink ? <a href={waLink} target="_blank" rel="noopener noreferrer" onClick={() => handleChatClick(item[COL_ORDER_ID])} className={`inline-flex items-center px-3 py-1.5 text-white text-xs font-bold rounded-full ${isClicked ? 'bg-gray-400' : 'bg-green-500 hover:bg-green-600'}`}><MessageSquare className="w-3 h-3 mr-1" /> {isClicked ? 'Dikirim' : 'Chat'}</a> : <span className="text-gray-400 text-xs">No Phone</span>}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 // --- NEW COMPONENT: TutorialView ---
@@ -3797,16 +3336,149 @@ const ProductAnalysisView = ({ productData }) => {
     );
 };
 
-// --- KOMPONEN UTAMA: DASHBOARD CRM ---
+// --- COMPONENT: BILLING VIEW ---
+const BillingView = () => {
+    const { user } = useUser();
+    
+    // Konfigurasi Paket Harga (Silakan sesuaikan harganya)
+    const plans = [
+        { 
+            id: 'monthly', 
+            name: '1 Bulan', 
+            days: 90, 
+            price: 99000, //
+            popular: false,
+            features: ['Akses Full Dashboard', 'Unlimited Upload Data' , 'Support Prioritas']
+        },
+        { 
+            id: 'yearly', 
+            name: '12 Bulan', 
+            days: 365, 
+            price: 990000, //
+            popular: true, // Label "Best Value"
+            features: ['Bayar 10 Bulan', 'Free 2 Bulan', 'Akses Early Bird Fitur Baru']
+        }
+    ];
+
+    const handlePurchase = (plan) => {
+        const adminPhone = "6287783026019";
+        // Format pesan otomatis
+        const message = `Halo Admin, saya ingin berlangganan *Paket ${plan.name} (${plan.days} Hari)* seharga *${formatRupiah(plan.price)}*.\n\nMohon info rekening pembayaran.\n\nID User Saya: ${user.id}`;
+        
+        const waLink = `https://wa.me/${adminPhone}?text=${encodeURIComponent(message)}`;
+        window.open(waLink, '_blank');
+    };
+
+    return (
+        <div className="space-y-8 animate-fade-in pb-10">
+            <div className="text-center max-w-2xl mx-auto mb-10">
+                <h2 className="text-3xl font-black text-gray-900 mb-4">Pilih Paket Langganan</h2>
+                <p className="text-gray-500">
+                    Investasi terbaik untuk memantau performa bisnis Anda secara real-time. 
+                    Pilih durasi yang sesuai dengan kebutuhan Anda.
+                </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                {plans.map((plan) => (
+                    <div 
+                        key={plan.id} 
+                        className={`relative bg-white rounded-2xl shadow-lg border transition-all duration-300 hover:-translate-y-2 hover:shadow-xl flex flex-col ${plan.popular ? 'border-indigo-500 ring-2 ring-indigo-500 ring-offset-2' : 'border-gray-200'}`}
+                    >
+                        {plan.popular && (
+                            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-600 text-white text-[10px] font-bold uppercase tracking-widest py-1 px-3 rounded-full shadow-md">
+                                Paling Laris
+                            </div>
+                        )}
+
+                        <div className="p-6 border-b border-gray-100 text-center">
+                            <h3 className="text-lg font-bold text-gray-800">{plan.name}</h3>
+                            <div className="mt-4 flex items-baseline justify-center">
+                                <span className="text-3xl font-extrabold text-gray-900">
+                                    {new Intl.NumberFormat('id-ID').format(plan.price / 1000)}k
+                                </span>
+                                <span className="ml-1 text-sm font-medium text-gray-500">IDR</span>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1">per {plan.days} hari</p>
+                        </div>
+
+                        <div className="p-6 flex-1 flex flex-col">
+                            <ul className="space-y-4 mb-6 flex-1">
+                                {plan.features.map((feature, idx) => (
+                                    <li key={idx} className="flex items-start">
+                                        <div className="flex-shrink-0">
+                                            <Check className="h-4 w-4 text-green-500" />
+                                        </div>
+                                        <p className="ml-3 text-xs text-gray-600">{feature}</p>
+                                    </li>
+                                ))}
+                            </ul>
+                            
+                            <button
+                                onClick={() => handlePurchase(plan)}
+                                className={`w-full py-3 px-4 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center justify-center ${
+                                    plan.popular 
+                                    ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
+                                    : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                                }`}
+                            >
+                                <Zap className="w-4 h-4 mr-2" />
+                                Pilih Paket Ini
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 mt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-white rounded-full shadow-sm">
+                        <CreditCard className="w-6 h-6 text-gray-600" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-gray-800 text-sm">Butuh paket custom atau Enterprise?</h4>
+                        <p className="text-xs text-gray-500">Hubungi kami untuk penawaran khusus bagi bisnis skala besar.</p>
+                    </div>
+                </div>
+                <button onClick={() => window.open(`https://wa.me/6287783026019`, '_blank')} className="text-sm font-bold text-gray-600 hover:text-indigo-600 underline">
+                    Chat Admin
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const ExpiredNotification = () => (
+    <div className="fixed top-4 right-4 z-50 animate-bounce-in">
+        <div className="bg-red-600 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center max-w-sm border-2 border-red-400">
+            <div className="p-2 bg-red-800 rounded-full mr-4 flex-shrink-0 animate-pulse">
+                <Lock className="w-6 h-6 text-white" />
+            </div>
+            <div>
+                <h4 className="font-bold text-sm uppercase tracking-wider mb-1">Akses Terkunci</h4>
+                <p className="text-xs leading-relaxed text-red-100">
+                    Masa aktif berakhir. Dashboard hanya dalam mode lihat (View Only). 
+                    Silakan pilih paket di menu <strong>Billing</strong> untuk membuka kunci.
+                </p>
+            </div>
+        </div>
+    </div>
+);
+
+// --- 4. KOMPONEN DASHBOARD UTAMA (LOGIKA LENGKAP) ---
 function DashboardCRM() {
     const { user } = useUser();
     
-    // 1. STATE DEFINITIONS
+    // State Definitions
     const [view, setView] = useState('summary');
     const [rawData, setRawData] = useState([]);
     const [adsData, setAdsData] = useState([]);
-    
     const [isLoadingFirestore, setIsLoadingFirestore] = useState(true);
+    
+    // State Trial & Status
+    const [trialStatus, setTrialStatus] = useState({ loading: true, expired: false, daysLeft: 0, mode: 'trial' });
+
+    // State Upload
     const [isUploading, setIsUploading] = useState(false);
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [uploadType, setUploadType] = useState('sales'); 
@@ -3814,135 +3486,114 @@ function DashboardCRM() {
     const [uploadError, setUploadError] = useState(null);
     const [fileNameDisplay, setFileNameDisplay] = useState("No file chosen");
 
-    // 2. DATA PROCESSING HOOK (Sales Data)
+    // Processed Data
     const processedData = useProcessedData(rawData);
-    
-    const { 
-        totalConfirmedRevenue, totalConfirmedOrders, totalGrossProfit,
-        customerSegmentationData, heatmapData, heatmapMaxRevenue,
-        rawTimeData, productVariantAnalysis, dailyTrendAnalysis,
-        provinceAnalysis, topLocationLists
-    } = processedData;
+    const { totalConfirmedRevenue, totalConfirmedOrders, totalGrossProfit, customerSegmentationData, heatmapData, heatmapMaxRevenue, rawTimeData, productVariantAnalysis, dailyTrendAnalysis, isDigitalMode } = processedData;
 
-    // --- HITUNG METRIK GABUNGAN (SALES + ADS) ---
-    // PERBAIKAN: Menambahkan Filter untuk membuang baris "Total", "Unknown", dll.
+    // Summary Metrics
     const summaryMetrics = useMemo(() => {
         let totalAdSpend = 0;
-        
         if (adsData && adsData.length > 0) {
             adsData.forEach(row => {
-                // 1. CEK NAMA CAMPAIGN
-                // Pastikan kita skip baris yang merupakan "Total", "Results", atau "Unknown"
                 const rawName = row['campaign_name'] || row['Campaign Name'] || '';
                 const name = rawName.toString().trim().toLowerCase();
-
-                // Daftar kata kunci baris rekap yang harus diabaikan
-                const ignoredNames = ['total', 'results', 'summary', 'unknown', ''];
-                
-                if (ignoredNames.includes(name)) {
-                    return; // SKIP baris ini, jangan dihitung
-                }
-
-                // 2. Hitung Spend jika baris valid
+                if (['total', 'results', 'summary', 'unknown', ''].includes(name)) return;
                 const spend = parseFloat(row['amount_spent_idr'] || row['amount_spent'] || 0);
                 if (!isNaN(spend)) totalAdSpend += spend;
             });
         }
-
-        // 3. Hitung Metrik Turunan (Rumus Bisnis)
-        const realNetProfit = totalGrossProfit - totalAdSpend; // Laba Bersih - Iklan
-        const roas = totalAdSpend > 0 ? totalConfirmedRevenue / totalAdSpend : 0; // Return on Ad Spend
-        const cpr = totalConfirmedOrders > 0 ? totalAdSpend / totalConfirmedOrders : 0; // Cost Per Result (per Transaksi Valid)
-        const mer = totalAdSpend > 0 ? totalConfirmedRevenue / totalAdSpend : 0; // Marketing Efficiency Ratio
-        const aov = totalConfirmedOrders > 0 ? totalConfirmedRevenue / totalConfirmedOrders : 0; // Average Order Value
+        const realNetProfit = totalGrossProfit - totalAdSpend;
+        const roas = totalAdSpend > 0 ? totalConfirmedRevenue / totalAdSpend : 0;
+        const cpr = totalConfirmedOrders > 0 ? totalAdSpend / totalConfirmedOrders : 0;
+        const mer = totalAdSpend > 0 ? totalConfirmedRevenue / totalAdSpend : 0;
+        const aov = totalConfirmedOrders > 0 ? totalConfirmedRevenue / totalConfirmedOrders : 0;
         const closingRate = rawData.length > 0 ? (totalConfirmedOrders / rawData.length) * 100 : 0;
-
-        return {
-            totalAdSpend,
-            realNetProfit,
-            roas,
-            cpr,
-            mer,
-            aov,
-            closingRate,
-            totalAllOrders: rawData.length
-        };
+        return { totalAdSpend, realNetProfit, roas, cpr, mer, aov, closingRate, totalAllOrders: rawData.length };
     }, [adsData, totalGrossProfit, totalConfirmedRevenue, totalConfirmedOrders, rawData]);
 
-
-    // --- HELPER: JSON TO CSV ---
     const jsonToCSV = (jsonArray) => {
         if (!jsonArray || jsonArray.length === 0) return "";
         const allHeaders = new Set();
-        jsonArray.forEach(row => {
-            if (row && typeof row === 'object') {
-                Object.keys(row).forEach(key => allHeaders.add(key));
-            }
-        });
-        const sortedHeaders = Array.from(allHeaders).sort((a, b) => {
-            const priority = ['order_id', 'confirmed_time', 'order_status', 'customer_type', 'name', 'phone', 'net_revenue'];
-            const idxA = priority.indexOf(a);
-            const idxB = priority.indexOf(b);
-            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-            if (idxA !== -1) return -1;
-            if (idxB !== -1) return 1;
-            return a.localeCompare(b);
-        });
+        jsonArray.forEach(row => { if (row && typeof row === 'object') { Object.keys(row).forEach(key => allHeaders.add(key)); } });
+        const sortedHeaders = Array.from(allHeaders).sort();
         const csvRows = [sortedHeaders.join(',')];
         for (const row of jsonArray) {
             const values = sortedHeaders.map(header => {
                 const val = row[header] === null || row[header] === undefined ? '' : String(row[header]);
-                const cleanVal = val.replace(/"/g, '""').replace(/\n|\r/g, ' '); 
-                return `"${cleanVal}"`;
+                return `"${val.replace(/"/g, '""').replace(/\n|\r/g, ' ')}"`;
             });
             csvRows.push(values.join(','));
         }
         return csvRows.join('\n');
     };
 
-    // 3. LOGIC: LOAD DATA
+    // Load Data & Check Trial Status
     useEffect(() => {
-        const loadData = async () => {
+        const initDashboard = async () => {
             if (user && user.id) {
                 setIsLoadingFirestore(true);
                 try {
                     const docRef = doc(db, "user_datasets", user.id);
                     const docSnap = await getDoc(docRef);
+                    const now = new Date();
+                    let currentTrialStart = null;
+
                     if (docSnap.exists()) {
                         const data = docSnap.data();
+                        
+                        if (data.expiryDate) {
+                            const expiry = new Date(data.expiryDate);
+                            if (now < expiry) {
+                                const diffDays = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+                                setTrialStatus({ loading: false, expired: false, daysLeft: diffDays, mode: 'subscription' });
+                            } else {
+                                setTrialStatus({ loading: false, expired: true, daysLeft: 0, mode: 'subscription' });
+                            }
+                        } else {
+                            if (data.trialStartDate) {
+                                currentTrialStart = new Date(data.trialStartDate);
+                            } else {
+                                currentTrialStart = new Date();
+                                await setDoc(docRef, { trialStartDate: currentTrialStart.toISOString() }, { merge: true });
+                            }
+                            const diffDays = (now - currentTrialStart) / (1000 * 60 * 60 * 24);
+                            const trialLimit = 7;
+                            
+                            if (diffDays > trialLimit) {
+                                setTrialStatus({ loading: false, expired: true, daysLeft: 0, mode: 'trial' });
+                            } else {
+                                setTrialStatus({ loading: false, expired: false, daysLeft: Math.ceil(trialLimit - diffDays), mode: 'trial' });
+                            }
+                        }
+
                         if (data.salesDataUrl) {
                             const res = await fetch(`${data.salesDataUrl}?t=${new Date().getTime()}`);
                             if (res.ok) {
                                 const textData = await res.text();
-                                if (textData.trim().startsWith('[') || textData.trim().startsWith('{')) {
-                                    setRawData(JSON.parse(textData));
-                                } else {
-                                    const { data: parsed } = parseCSV(textData);
-                                    setRawData(parsed);
-                                }
+                                if (textData.trim().startsWith('[') || textData.trim().startsWith('{')) setRawData(JSON.parse(textData));
+                                else setRawData(parseCSV(textData).data);
                             }
                         }
                         if (data.adsDataUrl) {
                             const res = await fetch(`${data.adsDataUrl}?t=${new Date().getTime()}`);
                             if (res.ok) {
                                 const textData = await res.text();
-                                if (textData.trim().startsWith('[') || textData.trim().startsWith('{')) {
-                                    setAdsData(JSON.parse(textData));
-                                } else {
-                                    const { data: parsed } = parseCSV(textData);
-                                    setAdsData(parsed);
-                                }
+                                if (textData.trim().startsWith('[') || textData.trim().startsWith('{')) setAdsData(JSON.parse(textData));
+                                else setAdsData(parseCSV(textData).data);
                             }
                         }
+                    } else {
+                        currentTrialStart = new Date();
+                        await setDoc(docRef, { trialStartDate: currentTrialStart.toISOString(), createdAt: new Date().toISOString() });
+                        setTrialStatus({ loading: false, expired: false, daysLeft: 7, mode: 'trial' });
                     }
-                } catch (error) { console.error("Error loading data:", error); } 
+                } catch (error) { console.error(error); } 
                 finally { setIsLoadingFirestore(false); }
             }
         };
-        loadData();
+        initDashboard();
     }, [user]);
 
-    // 4. LOGIC: UPLOAD
     const uploadToSupabase = async (userId, dataArray, fileName) => {
         const csvString = jsonToCSV(dataArray); 
         const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
@@ -3998,12 +3649,7 @@ function DashboardCRM() {
                 event.target.value = null;
                 setView('summary');
             }
-        } catch (error) { 
-            console.error(error);
-            setUploadError(`Gagal upload: ${error.message || error}`); 
-        } finally { 
-            setIsUploading(false); 
-        }
+        } catch (error) { console.error(error); setUploadError(`Gagal upload: ${error.message || error}`); } finally { setIsUploading(false); }
     };
 
     const handleDeleteData = async () => {
@@ -4012,94 +3658,58 @@ function DashboardCRM() {
         }
     }
 
-    // Hitung data chart trend untuk summary
     const summaryTrendData = useMemo(() => dailyTrendAnalysis, [dailyTrendAnalysis]);
 
-    // 6. RENDER VIEW
     const renderContent = () => {
-        if (isLoadingFirestore) return <div className="flex h-full items-center justify-center"><RefreshCw className="animate-spin w-8 h-8 text-indigo-600" /></div>;
+        if (isLoadingFirestore || trialStatus.loading) return <div className="flex h-full items-center justify-center flex-col gap-4"><RefreshCw className="animate-spin w-10 h-10 text-indigo-600" /><p className="text-gray-500 font-medium">Menyiapkan Dashboard...</p></div>;
 
         switch (view) {
-            case 'segmentation': return <CustomerSegmentationView data={customerSegmentationData} />;
+            case 'segmentation': return <CustomerSegmentationView data={customerSegmentationData} isDigitalMode={isDigitalMode} />;
             case 'marketing': return <MarketingAnalysisView adsData={adsData} />;
-            case 'report': return <DailyReportView confirmedOrders={processedData.confirmedOrders} customerSegmentationData={customerSegmentationData} rawData={rawData} adsData={adsData} setView={setView} />;
-            case 'recovery': return <RecoveryAnalysisView rawData={rawData} />;
+            case 'report': return <DailyReportView confirmedOrders={processedData.confirmedOrders} customerSegmentationData={customerSegmentationData} rawData={rawData} adsData={adsData} setView={setView} isDigitalMode={isDigitalMode} />;
+            case 'recovery': return <RecoveryAnalysisView rawData={rawData} isDigitalMode={isDigitalMode} />;
             case 'products': return <ProductAnalysisView productData={productVariantAnalysis} />;
             case 'time': return <TimeAnalysisView rawTimeData={rawTimeData} />;
             case 'heatmap': return <HeatmapAnalysisView heatmapData={heatmapData} maxRevenue={heatmapMaxRevenue} />;
+            case 'billing': return <BillingView />;
             case 'tutorial': return <TutorialView />;
             case 'summary':
             default:
                 return (
                     <div className="space-y-8 animate-fade-in pb-10">
-                        {/* === BARIS 1: FINANCIAL & MARKETING (Split 2 Kolom) === */}
                         <div className="flex flex-col xl:flex-row gap-6">
-                            
-                            {/* SECTION 1: KESEHATAN BISNIS (Kiri) */}
                             <div className="flex-1 bg-white p-5 rounded-xl shadow-md border border-gray-100">
-                                <h3 className="text-sm font-bold text-gray-700 flex items-center mb-4">
-                                    <DollarSign className="w-4 h-4 mr-2 text-green-600" />
-                                    Kesehatan Bisnis (Financial Health)
-                                </h3>
+                                <h3 className="text-sm font-bold text-gray-700 flex items-center mb-4"><DollarSign className="w-4 h-4 mr-2 text-green-600" />Kesehatan Bisnis</h3>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <StatCard compact title="Total Pendapatan (Sales)" value={formatRupiah(totalConfirmedRevenue)} icon={TrendingUp} color="#6366f1" />
-                                    <StatCard compact title="Est. Net Profit (Laba)" value={formatRupiah(totalGrossProfit)} icon={Coins} color="#10b981" />
-                                    <StatCard compact title="Total Ad Spend (Iklan)" value={formatRupiah(summaryMetrics.totalAdSpend)} icon={Wallet} color="#ef4444" />
-                                    <StatCard compact title="Real Net Profit (Est)" value={formatRupiah(summaryMetrics.realNetProfit)} icon={DollarSign} color="#10b981" />
+                                    <StatCard compact title="Total Pendapatan" value={formatRupiah(totalConfirmedRevenue)} icon={TrendingUp} color="#6366f1" />
+                                    <StatCard compact title="Est. Net Profit" value={formatRupiah(totalGrossProfit)} icon={Coins} color="#10b981" />
+                                    <StatCard compact title="Total Ad Spend" value={formatRupiah(summaryMetrics.totalAdSpend)} icon={Wallet} color="#ef4444" />
+                                    <StatCard compact title="Real Net Profit" value={formatRupiah(summaryMetrics.realNetProfit)} icon={DollarSign} color="#10b981" />
                                 </div>
                             </div>
-
-                            {/* SECTION 2: EFISIENSI MARKETING (Kanan) */}
                             <div className="flex-1 bg-white p-5 rounded-xl shadow-md border border-gray-100">
-                                <h3 className="text-sm font-bold text-gray-700 flex items-center mb-4">
-                                    <Activity className="w-4 h-4 mr-2 text-blue-600" />
-                                    Efisiensi Marketing & Operasional
-                                </h3>
+                                <h3 className="text-sm font-bold text-gray-700 flex items-center mb-4"><Activity className="w-4 h-4 mr-2 text-blue-600" />Efisiensi Marketing</h3>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <StatCard compact title="ROAS (Iklan)" value={summaryMetrics.roas.toFixed(2) + "x"} icon={Award} color="#f59e0b" />
-                                    <StatCard compact title="Marketing Efficiency (MER)" value={summaryMetrics.mer.toFixed(2) + "x"} icon={Percent} color="#8b5cf6" />
-                                    <StatCard compact title="CPR (Cost Per Result)" value={formatRupiah(summaryMetrics.cpr)} icon={Target} color="#f59e0b" />
-                                    <StatCard compact title="AOV (Rata-rata Order)" value={formatRupiah(summaryMetrics.aov)} icon={ShoppingBag} color="#06b6d4" />
+                                    <StatCard compact title="ROAS" value={summaryMetrics.roas.toFixed(2) + "x"} icon={Award} color="#f59e0b" />
+                                    <StatCard compact title="MER" value={summaryMetrics.mer.toFixed(2) + "x"} icon={Percent} color="#8b5cf6" />
+                                    <StatCard compact title="CPR" value={formatRupiah(summaryMetrics.cpr)} icon={Target} color="#f59e0b" />
+                                    <StatCard compact title="AOV" value={formatRupiah(summaryMetrics.aov)} icon={ShoppingBag} color="#06b6d4" />
                                 </div>
                             </div>
                         </div>
-
-                        {/* === BARIS 2: VOLUME TRANSAKSI (Full Width) === */}
                         <div className="bg-white p-5 rounded-xl shadow-md border border-gray-100">
-                            <h3 className="text-sm font-bold text-gray-700 flex items-center mb-4">
-                                <ShoppingBag className="w-4 h-4 mr-2 text-purple-600" />
-                                Volume Transaksi & Skala Operasional
-                            </h3>
+                            <h3 className="text-sm font-bold text-gray-700 flex items-center mb-4"><ShoppingBag className="w-4 h-4 mr-2 text-purple-600" />Volume Transaksi</h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                <StatCard compact title="Total Semua Pesanan" value={summaryMetrics.totalAllOrders} unit="Order" icon={ShoppingBag} color="#6366f1" description="Termasuk Pending, Batal & RTS" />
-                                <StatCard compact title="Total Transaksi (Confirmed)" value={totalConfirmedOrders} unit="Trx" icon={CheckCircle} color="#8b5cf6" />
-                                <StatCard compact title="Closing Rate (Konversi CS)" value={summaryMetrics.closingRate.toFixed(2) + "%"} unit="(Trx/Order)" icon={Grid3X3} color="#ec4899" />
-                                <StatCard compact title="Total Pelanggan Unik" value={customerSegmentationData.length} unit="Pelanggan" icon={Users} color="#3b82f6" />
+                                <StatCard compact title="Total Semua Pesanan" value={summaryMetrics.totalAllOrders} unit="Order" icon={ShoppingBag} color="#6366f1" description="Termasuk Pending/Batal" />
+                                <StatCard compact title="Transaksi Valid" value={totalConfirmedOrders} unit="Trx" icon={CheckCircle} color="#8b5cf6" />
+                                <StatCard compact title="Closing Rate" value={summaryMetrics.closingRate.toFixed(2) + "%"} unit="Rate" icon={Grid3X3} color="#ec4899" />
+                                <StatCard compact title="Total Pelanggan" value={customerSegmentationData.length} unit="Org" icon={Users} color="#3b82f6" />
                             </div>
                         </div>
-
-                        {/* === BARIS 3: CHART TREND === */}
                         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                                <Activity className="w-5 h-5 mr-2 text-indigo-600" />
-                                Tren Pendapatan Harian (30 Hari Terakhir)
-                            </h3>
+                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Activity className="w-5 h-5 mr-2 text-indigo-600" />Tren Pendapatan Harian</h3>
                             <div className="h-72 w-full">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={summaryTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                                        <defs>
-                                            <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#2563eb" stopOpacity={0.8}/>
-                                                <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                                        <XAxis dataKey="day" tick={{ fontSize: 10 }} interval={2} />
-                                        <YAxis tickFormatter={(val) => (val/1000000).toFixed(0) + 'jt'} tick={{ fontSize: 10 }} />
-                                        <Tooltip formatter={(value) => formatRupiah(value)} />
-                                        <Area type="monotone" dataKey="revenue" stroke="#2563eb" fillOpacity={1} fill="url(#colorRev)" />
-                                    </AreaChart>
-                                </ResponsiveContainer>
+                                <ResponsiveContainer width="100%" height="100%"><AreaChart data={summaryTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}><defs><linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.8}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" /><XAxis dataKey="day" tick={{ fontSize: 10 }} interval={2} /><YAxis tickFormatter={(val) => (val/1000000).toFixed(0) + 'jt'} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => formatRupiah(value)} /><Area type="monotone" dataKey="revenue" stroke="#2563eb" fillOpacity={1} fill="url(#colorRev)" /></AreaChart></ResponsiveContainer>
                             </div>
                         </div>
                     </div>
@@ -4107,49 +3717,61 @@ function DashboardCRM() {
         }
     };
 
+    const isContentFrozen = trialStatus.expired && view !== 'billing';
+
     return (
         <div className="flex h-screen overflow-hidden bg-gray-50">
-            {/* Sidebar */}
-            <aside className="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col z-10">
+            {trialStatus.expired && <ExpiredNotification />}
+            <aside className="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col z-10 relative">
                 <div className="p-6 border-b border-gray-100"><AppLogo /></div>
+                {!trialStatus.loading && (
+                    <div className={`mx-4 mt-4 p-3 rounded-xl text-white shadow-lg ${trialStatus.expired ? 'bg-red-600' : (trialStatus.mode === 'subscription' ? 'bg-emerald-600' : 'bg-indigo-600')}`}>
+                        <div className="flex items-center justify-between mb-1"><span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-black/20">{trialStatus.expired ? 'EXPIRED' : (trialStatus.mode === 'subscription' ? 'Premium Plan' : 'Free Trial')}</span>{trialStatus.expired ? <Lock className="w-3 h-3 text-red-200"/> : <Clock className="w-3 h-3 text-white/70" />}</div>
+                        {trialStatus.expired ? (<p className="text-xs mt-1 font-medium text-red-100">Akses dibatasi. Mohon perpanjang.</p>) : (<><p className="text-2xl font-bold">{trialStatus.daysLeft} <span className="text-xs font-normal opacity-80">Hari Lagi</span></p><div className="w-full bg-black/20 h-1.5 rounded-full mt-2 overflow-hidden"><div className="bg-white h-full rounded-full" style={{ width: `${(trialStatus.daysLeft / 7) * 100}%` }}></div></div></>)}
+                    </div>
+                )}
                 <nav className="flex-1 overflow-y-auto p-4 space-y-1">
                     <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-2">Overview</p>
-                    <NavButton id="summary" name="Ringkasan Utama" view={view} setView={setView} icon={LayoutDashboard} />
-                    <NavButton id="report" name="Laporan Harian" view={view} setView={setView} icon={List} />
-                    
+                    <NavButton id="summary" name="Ringkasan Utama" view={view} setView={setView} icon={LayoutDashboard} disabled={trialStatus.expired} />
+                    <NavButton id="report" name="Laporan Harian" view={view} setView={setView} icon={List} disabled={trialStatus.expired} />
                     <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-6">Analisis</p>
-                    <NavButton id="marketing" name="Analisis Marketing" view={view} setView={setView} icon={Megaphone} />
-                    <NavButton id="segmentation" name="Segmen Pelanggan" view={view} setView={setView} icon={Users} />
-                    <NavButton id="products" name="Analisis Produk" view={view} setView={setView} icon={Boxes} />
-                    <NavButton id="time" name="Tren Waktu" view={view} setView={setView} icon={History} />
-                    <NavButton id="heatmap" name="Heatmap Jam" view={view} setView={setView} icon={Grid3X3} />
-                    
+                    <NavButton id="marketing" name="Analisis Marketing" view={view} setView={setView} icon={Megaphone} disabled={trialStatus.expired} />
+                    <NavButton id="segmentation" name="Segmen Pelanggan" view={view} setView={setView} icon={Users} disabled={trialStatus.expired} />
+                    <NavButton id="products" name="Analisis Produk" view={view} setView={setView} icon={Boxes} disabled={trialStatus.expired} />
+                    <NavButton id="time" name="Tren Waktu" view={view} setView={setView} icon={History} disabled={trialStatus.expired} />
+                    <NavButton id="heatmap" name="Heatmap Jam" view={view} setView={setView} icon={Grid3X3} disabled={trialStatus.expired} />
                     <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-6">Action</p>
-                    <NavButton id="recovery" name="Recovery & Isu" view={view} setView={setView} icon={AlertTriangle} />
-                    <NavButton id="tutorial" name="Panduan / Tutorial" view={view} setView={setView} icon={BookOpen} />
+                    <NavButton id="recovery" name="Recovery & Isu" view={view} setView={setView} icon={AlertTriangle} disabled={trialStatus.expired} />
+                    <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-6">Akun & Langganan</p>
+                    <NavButton id="billing" name="Billing / Paket" view={view} setView={setView} icon={CreditCard} disabled={false} />
+                    <NavButton id="tutorial" name="Panduan / Tutorial" view={view} setView={setView} icon={BookOpen} disabled={trialStatus.expired} />
                 </nav>
                 <div className="p-4 border-t border-gray-200">
                     <div className="flex items-center gap-3 p-2 rounded-lg bg-gray-50">
                         <UserButton />
-                        <div className="flex flex-col"><span className="text-xs font-bold text-gray-700">{user?.fullName || 'User'}</span><span className="text-[10px] text-gray-500">Free Plan</span></div>
+                        <div className="flex flex-col overflow-hidden"><span className="text-xs font-bold text-gray-700 truncate">{user?.fullName || 'User'}</span><span className="text-[10px] text-gray-500">{trialStatus.mode === 'subscription' && !trialStatus.expired ? 'Premium' : 'Free Tier'}</span></div>
                     </div>
                 </div>
             </aside>
 
-            {/* Mobile Sidebar Overlay */}
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
                 <header className="bg-white border-b border-gray-200 py-3 px-6 flex items-center justify-between shadow-sm z-20">
                     <div className="md:hidden"><AppLogo /></div>
                     <h2 className="hidden md:block text-lg font-bold text-gray-800 capitalize">{view.replace('_', ' ')} Dashboard</h2>
                     <div className="flex items-center space-x-3">
-                        <button onClick={() => setShowUploadModal(true)} className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition shadow-sm text-sm font-bold">
-                            <Upload className="w-4 h-4 mr-2" /> Unggah / Kelola Data
+                        <button onClick={() => !trialStatus.expired && setShowUploadModal(true)} disabled={trialStatus.expired} className={`flex items-center px-4 py-2 rounded-lg transition shadow-sm text-sm font-bold ${trialStatus.expired ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+                            {trialStatus.expired ? <Lock className="w-4 h-4 mr-2"/> : <Upload className="w-4 h-4 mr-2" />} Unggah Data
                         </button>
                     </div>
                 </header>
-
-                <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-50">
-                    {renderContent()}
+                <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-50 relative">
+                    {isContentFrozen && (
+                        <div className="absolute inset-0 z-40 bg-gray-100/50 backdrop-grayscale cursor-not-allowed flex flex-col items-center justify-center">
+                            <div className="bg-white/90 p-6 rounded-full shadow-2xl backdrop-blur-sm animate-bounce"><Lock className="w-12 h-12 text-red-600" /></div>
+                            <p className="mt-4 font-bold text-red-700 bg-white/80 px-4 py-2 rounded-lg shadow-sm backdrop-blur-md">Mode Terkunci. Silakan ke menu Billing.</p>
+                        </div>
+                    )}
+                    <div className={isContentFrozen ? "pointer-events-none select-none filter blur-[2px]" : ""}>{renderContent()}</div>
                 </main>
             </div>
 
