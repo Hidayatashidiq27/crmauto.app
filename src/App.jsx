@@ -5,6 +5,7 @@ import { db } from "./firebase";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, Sector, ComposedChart, AreaChart, Area, ScatterChart, Scatter, LabelList } from 'recharts';
 import { TrendingUp, MapPin, LayoutDashboard, AlertTriangle, CheckCircle, Upload, Users, DollarSign, List, Globe, Boxes, Award, Calendar, Layers, PlusCircle, Trash2, GitCommit, Target, Filter, Download, Clock, Repeat, MessageSquare, Copy, Info, History, CreditCard, UserCheck, Landmark, Grid3X3, Truck, HelpCircle, FileText, XCircle, Zap, Wallet, ShoppingBag, Activity, PieChart as PieChartIcon, BarChart2, Package, Search, RefreshCw, ArrowRight, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Check, TrendingDown, ClipboardCopy, Megaphone, MousePointer, Eye, Percent, Coins, Star, BookOpen, UserPlus, Heart, Share2, Shield, Gift, Smile, Settings, Save, RotateCcw, Lock } from 'lucide-react';
+import myLogo from "./assets/logocrmauto.png";
 
 /**
  * Data CSV fallback (Sales)
@@ -51,24 +52,32 @@ const ADS_CPC = 'cpc_cost_per_link_click_idr';
 const ADS_ROAS = 'purchase_roas_return_on_ad_spend';
 const ADS_CONVERSION_VALUE = 'purchases_conversion_value'; 
 
-// --- COMPONENT: CUSTOM LOGO ---
+// --- COMPONENT: CUSTOM LOGO (TEXT UPDATED) ---
 const AppLogo = () => (
-    <div className="flex items-center gap-3 select-none">
-        <div className="relative flex items-center justify-center w-12 h-12 bg-indigo-700 rounded-xl shadow-lg border border-indigo-500 overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-indigo-800"></div>
-            <svg viewBox="0 0 24 24" className="w-8 h-8 text-white relative z-10 fill-current" style={{ transform: 'rotate(-90deg)' }}>
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="none" stroke="currentColor" strokeWidth="4" strokeDasharray="40" strokeDashoffset="10" strokeLinecap="round" />
-            </svg>
-        </div>
-        <div className="flex flex-col justify-center h-12">
-            <h1 className="text-3xl font-black text-gray-900 tracking-tighter leading-none" style={{ fontFamily: 'Inter, sans-serif' }}>
-                CRM<span className="text-indigo-700">Auto</span>
-            </h1>
-            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] leading-tight ml-0.5 mt-0.5">
-                Intelligence
-            </span>
-        </div>
-    </div>
+    <div className="flex items-center gap-3 select-none">
+        
+        {/* 1. LOGO IMAGE WRAPPER */}
+        <div className="relative flex items-center justify-center w-12 h-12 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-shrink-0">
+            <img 
+                src={myLogo} 
+                alt="Logo CRM" 
+                className="w-full h-full object-cover" 
+            />
+        </div>
+
+        {/* 2. BAGIAN TEKS (UPDATED) */}
+        <div className="flex flex-col justify-center">
+            {/* Judul Utama */}
+            <h1 className="text-2xl font-black text-gray-900 tracking-tight leading-none" style={{ fontFamily: 'Inter, sans-serif' }}>
+                CRM<span className="text-indigo-700">Auto</span>
+            </h1>
+            
+            {/* Subtitle Baru */}
+            <p className="text-[10px] font-semibold text-gray-500 mt-1 leading-snug">
+                Dashboard Analytic & <br/> Segmen Pelanggan
+            </p>
+        </div>
+    </div>
 );
 
 // --- UTILS ---
