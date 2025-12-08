@@ -1821,6 +1821,90 @@ const DailyReportView = ({ confirmedOrders, customerSegmentationData, rawData, a
             </p>
         </div>
     </div>
+	
+	{/* --- [BARU DITAMBAHKAN] TREN HARIAN & TOP LISTS (FIXED LAYOUT) --- */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    {/* GRAFIK TREN (KIRI - LEBAR & FULL HEIGHT) */}
+                    <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col h-full"> 
+                        {/* ^ Tambahkan 'flex flex-col h-full' agar kartu memanjang mengikuti kolom sebelah */}
+                        
+                        <div className="mb-4">
+                            <h3 className="text-xl font-semibold text-gray-800 flex items-center"><Calendar className="w-5 h-5 mr-2 text-indigo-600" />Tren Harian (Akumulasi Tanggal 1 - 31)</h3>
+                            <p className="text-sm text-gray-500 mt-1">Grafik gabungan: Batang untuk Net Revenue dan Garis untuk Jumlah Transaksi (Hanya Confirmed).</p>
+                        </div>
+                        
+                        {/* v Ganti 'h-96' menjadi 'flex-1 min-h-[400px]' agar grafik mengisi sisa ruang kosong */}
+                        <div className="flex-1 w-full min-h-[400px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <ComposedChart data={trendData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                                    <CartesianGrid stroke="#f5f5f5" />
+                                    <XAxis dataKey="day" label={{ value: 'Tanggal', position: 'insideBottomRight', offset: -5 }} tick={{fontSize: 11}} />
+                                    <YAxis yAxisId="left" orientation="left" stroke="#2563EB" tickFormatter={(val) => (val/1000).toFixed(0)+'k'} fontSize={11} />
+                                    <YAxis yAxisId="right" orientation="right" stroke="#F59E0B" fontSize={11} />
+                                    <Tooltip 
+                                        contentStyle={{borderRadius:'8px', border:'none', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.1)'}}
+                                        formatter={(value, name) => [name === 'Revenue' ? formatRupiah(value) : value, name]} 
+                                    />
+                                    <Legend wrapperStyle={{paddingTop: '10px'}}/>
+                                    <Bar yAxisId="left" dataKey="revenue" name="Revenue" barSize={20} fill="#2563EB" radius={[4, 4, 0, 0]} />
+                                    <Line yAxisId="right" type="monotone" dataKey="transactions" name="Transaksi" stroke="#F59E0B" strokeWidth={3} dot={{r: 4}} />
+                                </ComposedChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* TOP LISTS (KANAN - SEMPIT & STACKED) */}
+                    <div className="flex flex-col gap-6 h-full">
+                        {/* Top 5 Varian */}
+                        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col flex-1">
+                            <h3 className="text-lg font-semibold mb-4 text-gray-800 border-b pb-2 flex items-center"><Award className="w-5 h-5 mr-2 text-pink-600" />Top 5 Varian Terlaris</h3>
+                            <div className="space-y-4 pt-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                                {topProducts.length === 0 ? (<p className="text-gray-500 italic text-center py-4 text-xs">Data produk tidak tersedia.</p>) : (
+                                    topProducts.slice(0, 5).map((product, index) => (
+                                        <div key={index} className="flex flex-col">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className={`text-xs font-bold truncate max-w-[150px] ${index === 0 ? 'text-pink-600' : 'text-gray-700'}`} title={product.name}>#{index + 1}: {product.name}</span>
+                                                <span className="text-xs font-extrabold text-indigo-600">{product.totalQuantity.toLocaleString()} Unit</span>
+                                            </div>
+                                            <div className="w-full bg-gray-100 rounded-full h-1.5">
+                                                <div className={`h-1.5 rounded-full ${index === 0 ? 'bg-pink-500' : index === 1 ? 'bg-pink-400' : 'bg-pink-300'}`} style={{ width: `${(product.totalQuantity / topProducts[0].totalQuantity) * 100}%` }}></div>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                        
+                        {/* Top 5 Big Spenders */}
+                        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col flex-1">
+                            <h3 className="text-lg font-semibold mb-4 text-gray-800 border-b pb-2 flex items-center"><UserPlus className="w-5 h-5 mr-2 text-yellow-600" />Top 5 Big Spenders</h3>
+                            <div className="space-y-3 pt-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                                {topSpenders.length === 0 ? (
+                                    <p className="text-gray-500 italic text-center py-4 text-xs">Belum ada transaksi.</p>
+                                ) : (
+                                    topSpenders.map((cust, index) => (
+                                        <div key={index} className="flex justify-between items-center border-b border-gray-50 last:border-0 pb-2 last:pb-0">
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 ${index === 0 ? 'bg-yellow-500 shadow-md' : 'bg-gray-200 text-gray-600'}`}>
+                                                    {index + 1}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-bold text-gray-800 truncate max-w-[100px]" title={cust.name}>{cust.name}</p>
+                                                    <p className="text-[9px] text-gray-500 truncate max-w-[100px]">{cust.city}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
+                                                <p className="text-xs font-bold text-green-600">{formatRupiah(cust.revenue)}</p>
+                                                <p className="text-[9px] text-gray-400">{cust.count} Order</p>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
 {/* --- SEBARAN LOKASI (Hanya Muncul Jika Produk Fisik) --- */}
     {!isDigitalMode && (
@@ -3552,15 +3636,7 @@ function DashboardCRM() {
                             </div>
                         </div>
 
-                        {/* --- [4. TREN PENDAPATAN HARIAN] --- */}
-                        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Activity className="w-5 h-5 mr-2 text-indigo-600" />Tren Pendapatan Harian</h3>
-                            <div className="h-72 w-full">
-                                <ResponsiveContainer width="100%" height="100%"><AreaChart data={summaryTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}><defs><linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.8}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" /><XAxis dataKey="day" tick={{ fontSize: 10 }} interval={2} /><YAxis tickFormatter={(val) => (val/1000000).toFixed(0) + 'jt'} tick={{ fontSize: 10 }} /><Tooltip formatter={(value) => formatRupiah(value)} /><Area type="monotone" dataKey="revenue" stroke="#2563eb" fillOpacity={1} fill="url(#colorRev)" /></AreaChart></ResponsiveContainer>
-                            </div>
-                        </div>
-
-                        {/* --- [5. OPERASIONAL & PRODUK] --- */}
+                        {/* --- [4. OPERASIONAL & PRODUK] --- */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             {/* Chart Status */}
                             <div className="bg-white p-5 rounded-xl shadow-md border border-gray-100 flex flex-col">
@@ -3574,7 +3650,15 @@ function DashboardCRM() {
                             <div className="bg-white p-5 rounded-xl shadow-md border border-gray-100 flex flex-col">
                                 <h3 className="text-sm font-bold text-gray-700 flex items-center mb-2"><Users className="w-4 h-4 mr-2 text-blue-500" />Pelanggan Baru vs Lama</h3>
                                 <div className="flex-1 min-h-[200px] flex items-center justify-center">
-                                     <ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={custTypeData} cx="50%" cy="50%" outerRadius={60} dataKey="value" label={({ percent }) => `${(percent * 100).toFixed(0)}%`}>{custTypeData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}</Pie><Tooltip /><Legend verticalAlign="bottom" iconSize={8} wrapperStyle={{fontSize:'10px'}}/></PieChart></ResponsiveContainer>
+                                     <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie data={custTypeData} cx="50%" cy="50%" outerRadius={60} dataKey="value" label={({ percent }) => `${(percent * 100).toFixed(0)}%`}>
+                                                {custTypeData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
+                                            </Pie>
+                                            <Tooltip />
+                                            <Legend verticalAlign="bottom" iconSize={8} wrapperStyle={{fontSize:'10px'}}/>
+                                        </PieChart>
+                                    </ResponsiveContainer>
                                 </div>
                             </div>
 
@@ -3603,7 +3687,7 @@ function DashboardCRM() {
                 );
             }
         }
-    };           
+    };
 
     const isContentFrozen = trialStatus.expired && view !== 'billing';
 
