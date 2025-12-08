@@ -4,7 +4,7 @@ import { supabase } from './supabaseClient';
 import { db } from "./firebase"; 
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, Sector, ComposedChart, AreaChart, Area, ScatterChart, Scatter, LabelList } from 'recharts';
-import { TrendingUp, MapPin, LayoutDashboard, AlertTriangle, CheckCircle, Upload, Users, DollarSign, List, Globe, Boxes, Award, Calendar, Layers, PlusCircle, Trash2, GitCommit, Target, Filter, Download, Clock, Repeat, MessageSquare, Copy, Info, History, CreditCard, UserCheck, Landmark, Grid3X3, Truck, HelpCircle, FileText, XCircle, Zap, Wallet, ShoppingBag, Activity, PieChart as PieChartIcon, Package, Search, RefreshCw, ArrowRight, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Check, TrendingDown, ClipboardCopy, Megaphone, MousePointer, Eye, Percent, Coins, Star, BookOpen, UserPlus, Heart, Share2, Shield, Gift, Smile, Settings, Save, RotateCcw, Lock } from 'lucide-react';
+import { TrendingUp, MapPin, LayoutDashboard, AlertTriangle, CheckCircle, Upload, Users, DollarSign, List, Globe, Boxes, Award, Calendar, Layers, PlusCircle, Trash2, GitCommit, Target, Filter, Download, Clock, Repeat, MessageSquare, Copy, Info, History, CreditCard, UserCheck, Landmark, Grid3X3, Truck, HelpCircle, FileText, XCircle, Zap, Wallet, ShoppingBag, Activity, PieChart as PieChartIcon, BarChart2, Package, Search, RefreshCw, ArrowRight, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Check, TrendingDown, ClipboardCopy, Megaphone, MousePointer, Eye, Percent, Coins, Star, BookOpen, UserPlus, Heart, Share2, Shield, Gift, Smile, Settings, Save, RotateCcw, Lock } from 'lucide-react';
 
 /**
  * Data CSV fallback (Sales)
@@ -352,9 +352,23 @@ const parseDateSafe = (dateStr) => {
     return null;
 };
 
-// --- 4. USE PROCESSED DATA (FIXED: TIME TREND DATA) ---
+// --- 4. USE PROCESSED DATA (FINAL REVISION: FORCE NUMBER PARSING) ---
 const useProcessedData = (rawData) => {
     return useMemo(() => {
+        // --- HELPER: AMBIL ANGKA DARI STRING (Force Number) ---
+        // Fungsi ini membersihkan "Rp", ".", "," agar terbaca sebagai angka
+        const safeFloat = (val) => {
+            if (typeof val === 'number') return val;
+            if (!val) return 0;
+            const str = val.toString();
+            // Hapus semua karakter kecuali angka, minus, dan titik desimal
+            // Asumsi: Data CSV biasanya tidak pakai pemisah ribuan titik jika format standar,
+            // tapi jika format Indonesia (100.000), kita harus buang titiknya dulu.
+            const cleanStr = str.replace(/[^0-9,-]/g, '').replace(',', '.'); 
+            const num = parseFloat(cleanStr);
+            return isNaN(num) ? 0 : num;
+        };
+
         // --- A. BASIC SETUP ---
         const hasLocationData = rawData.some(item => 
             (item[COL_PROVINCE] && item[COL_PROVINCE].toString().trim() !== '' && item[COL_PROVINCE] !== '-') ||
@@ -364,32 +378,40 @@ const useProcessedData = (rawData) => {
 
         if (rawData.length === 0) return { 
             // Default Return Empty
-            utmChartAnalysis: [], utmSourceAnalysis: [], provinceAnalysis: [], uniqueCustomerList: [], geoRevenueChart: [], productVariantAnalysis: [], top3Products: [], customerSegmentationData: [], rawData: [], uniqueDates: { years: [], months: [], days: [] }, totalConfirmedRevenue: 0, totalConfirmedOrders: 0, timeAnalysis: { yearly: [], quarterly: [], monthly: [] }, paymentMethodAnalysis: [], customerTypeAnalysis: [], financialEntityAnalysis: [], courierAnalysis: [], rawTimeData: [], heatmapData: [], heatmapMaxRevenue: 0, dailyTrendAnalysis: [], confirmedOrders: [], totalGrossProfit: 0, topLocationLists: { provinces: [], cities: [], subdistricts: [] },
+            utmChartAnalysis: [], utmSourceAnalysis: [], provinceAnalysis: [], uniqueCustomerList: [], geoRevenueChart: [], 
+            productVariantAnalysis: [], top3Products: [], customerSegmentationData: [], rawData: [], 
+            uniqueDates: { years: [], months: [], days: [] }, totalConfirmedRevenue: 0, totalConfirmedOrders: 0, 
+            timeAnalysis: { yearly: [], quarterly: [], monthly: [] }, paymentMethodAnalysis: [], customerTypeAnalysis: [], 
+            financialEntityAnalysis: [], courierAnalysis: [], rawTimeData: [], heatmapData: [], heatmapMaxRevenue: 0, 
+            dailyTrendAnalysis: [], confirmedOrders: [], totalGrossProfit: 0, 
+            topLocationLists: { provinces: [], cities: [], subdistricts: [] },
             isDigitalMode: false, totalSoldItems: 0, sankeyData: { nodes: [], links: [] }, cohortData: []
         };
 
         const isConfirmed = (item) => !!item[COL_CONFIRMED_TIME] && item[COL_CONFIRMED_TIME].toString().trim() !== '';
         const filteredData = rawData.filter(isConfirmed); 
-        const totalConfirmedRevenue = filteredData.reduce((sum, item) => sum + (item[COL_NET_REVENUE] || 0), 0);
+        
+        // Gunakan safeFloat saat menghitung total
+        const totalConfirmedRevenue = filteredData.reduce((sum, item) => sum + safeFloat(item[COL_NET_REVENUE]), 0);
         const totalConfirmedOrders = filteredData.length;
         
-        // --- 0. PREPARE VARIANT KEYS (Detect Product Columns) ---
+        // --- 0. PREPARE VARIANT KEYS ---
         const allVariantKeys = new Set();
         rawData.forEach(row => { 
             Object.keys(row).forEach(key => { 
                 if (key.startsWith('variant:')) allVariantKeys.add(key); 
             }); 
         });
-        const variantColumns = Array.from(allVariantKeys); // List kolom produk
+        const variantColumns = Array.from(allVariantKeys);
 
         let totalGrossProfit = 0;
         filteredData.forEach(item => {
-            const grossRev = item[COL_GROSS_REVENUE] || 0; 
-            const prodDisc = item[COL_PRODUCT_DISCOUNT] || 0; 
-            const shipDisc = item[COL_SHIPPING_DISCOUNT] || 0; 
-            const cogs = item[COL_COGS] || 0; 
-            const payFee = item[COL_PAYMENT_FEE] || 0; 
-            const shipCost = item[COL_SHIPPING_COST] || 0;
+            const grossRev = safeFloat(item[COL_GROSS_REVENUE]); 
+            const prodDisc = safeFloat(item[COL_PRODUCT_DISCOUNT]); 
+            const shipDisc = safeFloat(item[COL_SHIPPING_DISCOUNT]); 
+            const cogs = safeFloat(item[COL_COGS]); 
+            const payFee = safeFloat(item[COL_PAYMENT_FEE]); 
+            const shipCost = safeFloat(item[COL_SHIPPING_COST]);
             totalGrossProfit += (grossRev - prodDisc - shipDisc) - cogs - payFee - shipCost;
         });
 
@@ -399,38 +421,31 @@ const useProcessedData = (rawData) => {
         const dailyTrendStats = Array(31).fill(null).map((_, i) => ({ day: i + 1, revenue: 0, transactions: 0 }));
         const heatmapGrid = Array(31).fill(null).map(() => Array(24).fill(0));
         let heatmapMaxRevenue = 0;
-
-        // [FIX 1] Inisialisasi variabel penampung data waktu
-        const _rawTimeData = [];
+        const _rawTimeData = []; 
 
         filteredData.forEach(item => {
             const confirmedTimeStr = item[COL_CONFIRMED_TIME];
-            const revenue = item[COL_NET_REVENUE] || 0;
-            if (confirmedTimeStr) {
-                const d = new Date(confirmedTimeStr.replace(' ', 'T'));
-                if (!isNaN(d.getTime())) {
-                    const year = d.getFullYear(); const month = d.getMonth(); const day = d.getDate(); const hour = d.getHours();
-                    yearlyStats[year] = (yearlyStats[year] || 0) + revenue;
-                    monthlyStats[month] += revenue;
-                    quarterlyStats[month <= 2 ? 'Q1' : month <= 5 ? 'Q2' : month <= 8 ? 'Q3' : 'Q4'] += revenue;
-                    
-                    if (day >= 1 && day <= 31) {
-                        dailyTrendStats[day-1].revenue += revenue; dailyTrendStats[day-1].transactions += 1;
-                        heatmapGrid[day-1][hour] += revenue;
-                        if (heatmapGrid[day-1][hour] > heatmapMaxRevenue) heatmapMaxRevenue = heatmapGrid[day-1][hour];
-                    }
+            const revenue = safeFloat(item[COL_NET_REVENUE]); // GUNAKAN SAFEFLOAT
+            
+            const d = parseDateSafe(confirmedTimeStr);
 
-                    // [FIX 2] Masukkan data ke array agar Grafik Tren Waktu bisa membacanya
-                    _rawTimeData.push({
-                        year: year.toString(),
-                        monthIndex: month, // 0-11
-                        revenue: revenue
-                    });
+            if (d && !isNaN(d.getTime())) {
+                const year = d.getFullYear(); const month = d.getMonth(); const day = d.getDate(); const hour = d.getHours();
+                
+                yearlyStats[year] = (yearlyStats[year] || 0) + revenue;
+                monthlyStats[month] += revenue;
+                quarterlyStats[month <= 2 ? 'Q1' : month <= 5 ? 'Q2' : month <= 8 ? 'Q3' : 'Q4'] += revenue;
+                
+                if (day >= 1 && day <= 31) {
+                    dailyTrendStats[day-1].revenue += revenue; dailyTrendStats[day-1].transactions += 1;
+                    heatmapGrid[day-1][hour] += revenue;
+                    if (heatmapGrid[day-1][hour] > heatmapMaxRevenue) heatmapMaxRevenue = heatmapGrid[day-1][hour];
                 }
+                _rawTimeData.push({ year: year.toString(), monthIndex: month, revenue: revenue });
             }
         });
 
-        // --- C. CUSTOMER DATA PROCESSING (THE AI BRAIN) ---
+        // --- C. CUSTOMER DATA PROCESSING ---
         const customerMap = {};
         const today = new Date();
         const pastDate = new Date(); pastDate.setDate(today.getDate() - 30); 
@@ -438,166 +453,108 @@ const useProcessedData = (rawData) => {
         filteredData.forEach(item => {
             const name = item[COL_NAME];
             if (!name) return;
-            const revenue = item[COL_NET_REVENUE] || 0;
-            const dateStr = item[COL_CONFIRMED_TIME];
-            const orderDate = new Date(dateStr.replace(' ', 'T'));
-            const hour = orderDate.getHours();
+            const revenue = safeFloat(item[COL_NET_REVENUE]); // GUNAKAN SAFEFLOAT
+            const d = parseDateSafe(item[COL_CONFIRMED_TIME]);
+            if (!d) return;
+
+            const orderDate = d;
+            const hour = d.getHours();
             
             if (!customerMap[name]) {
                 customerMap[name] = { 
                     name, phone: item[COL_PHONE], email: item['email'], address: item[COL_ADDRESS], 
                     province: item[COL_PROVINCE], city: item[COL_CITY],
                     orders: [], orderHours: [], 
-                    productMap: {}, // Menampung riwayat produk per user
+                    productMap: {},
                     totalRevenue: 0, totalFreq: 0, lastDate: null,
                     pastRevenue: 0, pastFreq: 0, pastLastDate: null
                 };
             }
             const c = customerMap[name];
-            c.orders.push(orderDate);
-            c.orderHours.push(hour);
-            c.totalRevenue += revenue;
+            c.orders.push(orderDate); c.orderHours.push(hour); 
+            c.totalRevenue += revenue; 
             c.totalFreq += 1;
             if (!c.lastDate || orderDate > c.lastDate) c.lastDate = orderDate;
 
-            // --- HITUNG PRODUK PER PELANGGAN ---
             variantColumns.forEach(key => {
                 const qty = parseFloat(item[key] || 0);
                 if (qty > 0) {
                     const cleanName = key.replace('variant:', '').replace(/_/g, ' ').toUpperCase();
-                    // Akumulasi qty produk ke map pelanggan
                     c.productMap[cleanName] = (c.productMap[cleanName] || 0) + qty;
                 }
             });
 
-            if (orderDate < pastDate) {
-                c.pastRevenue += revenue;
-                c.pastFreq += 1;
-                if (!c.pastLastDate || orderDate > c.pastLastDate) c.pastLastDate = orderDate;
+            if (orderDate < pastDate) { 
+                c.pastRevenue += revenue; 
+                c.pastFreq += 1; 
+                if (!c.pastLastDate || orderDate > c.pastLastDate) c.pastLastDate = orderDate; 
             }
         });
 
         const rfmList = Object.values(customerMap).map(c => {
             const recency = Math.floor((today - c.lastDate) / (1000 * 60 * 60 * 24));
-            
-            // AI PREDICTIONS (Optimal Time & Churn)
-            const hourCounts = {};
-            let maxHour = 9; let maxCount = 0;
-            c.orderHours.forEach(h => {
-                hourCounts[h] = (hourCounts[h] || 0) + 1;
-                if (hourCounts[h] > maxCount) { maxCount = hourCounts[h]; maxHour = h; }
-            });
+            const hourCounts = {}; let maxHour = 9; let maxCount = 0;
+            c.orderHours.forEach(h => { hourCounts[h] = (hourCounts[h] || 0) + 1; if (hourCounts[h] > maxCount) { maxCount = hourCounts[h]; maxHour = h; } });
             const optimalTimeLabel = `${String(maxHour).padStart(2,'0')}:00 - ${String(maxHour + 1).padStart(2,'0')}:00`;
-
             let churnScore = 0;
-            if (recency > 90) churnScore = 90; 
-            else if (recency > 60) churnScore = 75;
-            else if (recency > 30) churnScore = 50;
-            else if (recency > 14) churnScore = 25;
-            else churnScore = 10;
-            if (c.totalFreq > 3 && recency > 45) churnScore += 20; 
-            if (c.totalFreq === 1 && recency > 60) churnScore += 10; 
-            if (churnScore > 100) churnScore = 100;
-
-            let pastRecency = 999;
-            let pastSegment = "New / Inactive"; 
+            if (recency > 90) churnScore = 90; else if (recency > 60) churnScore = 75; else if (recency > 30) churnScore = 50; else if (recency > 14) churnScore = 25; else churnScore = 10;
+            if (c.totalFreq > 3 && recency > 45) churnScore += 20; if (c.totalFreq === 1 && recency > 60) churnScore += 10; if (churnScore > 100) churnScore = 100;
+            
+            let pastRecency = 999; let pastSegment = "New / Inactive"; 
             if (c.pastFreq > 0) {
                 pastRecency = Math.floor((pastDate - c.pastLastDate) / (1000 * 60 * 60 * 24));
                 let pR = pastRecency <= 30 ? 5 : pastRecency <= 60 ? 4 : pastRecency <= 90 ? 3 : pastRecency <= 180 ? 2 : 1;
                 let pF = c.pastFreq >= 10 ? 5 : c.pastFreq >= 5 ? 4 : c.pastFreq >= 3 ? 3 : c.pastFreq >= 2 ? 2 : 1;
-                let pM = 3; 
-                pastSegment = assignRFMSegment(pR, pF, pM);
+                let pM = 3; pastSegment = assignRFMSegment(pR, pF, pM);
             }
-
-            return { 
-                ...c, recency, frequency: c.totalFreq, monetary: c.totalRevenue, pastSegment,
-                churnProbability: churnScore, 
-                optimalTime: optimalTimeLabel 
-            };
+            return { ...c, recency, frequency: c.totalFreq, monetary: c.totalRevenue, pastSegment, churnProbability: churnScore, optimalTime: optimalTimeLabel };
         });
 
         const getScores = (data, field, reverse = false) => {
             const sorted = [...new Set(data.map(d => d[field]))].sort((a, b) => a - b);
-            const step = Math.ceil(sorted.length / 5);
-            const scores = {};
-            sorted.forEach((val, i) => {
-                let s = Math.min(5, Math.floor(i / step) + 1);
-                if (reverse) s = 6 - s;
-                scores[val] = s;
-            });
+            const step = Math.ceil(sorted.length / 5); const scores = {};
+            sorted.forEach((val, i) => { let s = Math.min(5, Math.floor(i / step) + 1); if (reverse) s = 6 - s; scores[val] = s; });
             return scores;
         };
-        const R_Map = getScores(rfmList, 'recency', true);
-        const F_Map = getScores(rfmList, 'frequency', false);
-        const M_Map = getScores(rfmList, 'monetary', false);
-
+        const R_Map = getScores(rfmList, 'recency', true); const F_Map = getScores(rfmList, 'frequency', false); const M_Map = getScores(rfmList, 'monetary', false);
         const finalCustomerData = rfmList.map(c => {
-            const R = R_Map[c.recency] || 1;
-            const F = F_Map[c.frequency] || 1;
-            const M = M_Map[c.monetary] || 1;
+            const R = R_Map[c.recency] || 1; const F = F_Map[c.frequency] || 1; const M = M_Map[c.monetary] || 1;
             const currentSegment = assignRFMSegment(R, F, M);
             const segInfo = TARGET_SEGMENTS_10.find(s => s.name === currentSegment) || TARGET_SEGMENTS_10[9];
-            return { 
-                ...c, R_Score: R, F_Score: F, M_Score: M, 
-                Segment10Name: currentSegment, Segment10Color: segInfo.color, Segment10Hex: segInfo.hexColor
-            };
+            return { ...c, R_Score: R, F_Score: F, M_Score: M, Segment10Name: currentSegment, Segment10Color: segInfo.color, Segment10Hex: segInfo.hexColor };
         });
 
-        // Sankey & Cohort logic (simplified for brevity, keep your original if needed)
-        const sankeyLinks = {};
-        finalCustomerData.forEach(c => {
-            const key = `${c.pastSegment} (Lalu)|${c.Segment10Name} (Kini)`;
-            sankeyLinks[key] = (sankeyLinks[key] || 0) + 1;
-        });
-        const sankeyNodesSet = new Set();
-        const finalSankeyLinks = Object.entries(sankeyLinks).map(([key, value]) => {
-            const [source, target] = key.split('|');
-            sankeyNodesSet.add(source); sankeyNodesSet.add(target);
-            return { source, target, value };
-        }).sort((a, b) => b.value - a.value).slice(0, 15).map(link => ({
-            source: Array.from(sankeyNodesSet).indexOf(link.source),
-            target: Array.from(sankeyNodesSet).indexOf(link.target),
-            value: link.value
-        }));
+        const sankeyLinks = {}; finalCustomerData.forEach(c => { const key = `${c.pastSegment} (Lalu)|${c.Segment10Name} (Kini)`; sankeyLinks[key] = (sankeyLinks[key] || 0) + 1; });
+        const sankeyNodesSet = new Set(); const finalSankeyLinks = Object.entries(sankeyLinks).map(([key, value]) => { const [source, target] = key.split('|'); sankeyNodesSet.add(source); sankeyNodesSet.add(target); return { source, target, value }; }).sort((a, b) => b.value - a.value).slice(0, 15).map(link => ({ source: Array.from(sankeyNodesSet).indexOf(link.source), target: Array.from(sankeyNodesSet).indexOf(link.target), value: link.value }));
         const sankeyNodesArray = Array.from(sankeyNodesSet).map(name => ({ name }));
+        const cohortMap = {}; finalCustomerData.forEach(c => { if (c.orders.length === 0) return; const sortedOrders = c.orders.sort((a, b) => a - b); const firstDate = sortedOrders[0]; const joinMonthKey = `${firstDate.getFullYear()}-${String(firstDate.getMonth() + 1).padStart(2, '0')}`; if (!cohortMap[joinMonthKey]) cohortMap[joinMonthKey] = { total: 0, retentions: {} }; cohortMap[joinMonthKey].total += 1; const uniqueMonthsBought = new Set(); sortedOrders.forEach(d => { const diffMonths = (d.getFullYear() - firstDate.getFullYear()) * 12 + (d.getMonth() - firstDate.getMonth()); uniqueMonthsBought.add(diffMonths); }); uniqueMonthsBought.forEach(mIdx => { cohortMap[joinMonthKey].retentions[mIdx] = (cohortMap[joinMonthKey].retentions[mIdx] || 0) + 1; }); });
+        const cohortData = Object.entries(cohortMap).sort().slice(-6).map(([month, stats]) => { const retentionArr = []; for (let i = 0; i <= 5; i++) { const pct = stats.total > 0 ? Math.round(((stats.retentions[i] || 0) / stats.total) * 100) : 0; retentionArr.push(pct); } return { month, users: stats.total, retention: retentionArr }; });
 
-        // Cohort Logic
-        const cohortMap = {}; 
-        finalCustomerData.forEach(c => {
-            if (c.orders.length === 0) return;
-            const sortedOrders = c.orders.sort((a, b) => a - b);
-            const firstDate = sortedOrders[0];
-            const joinMonthKey = `${firstDate.getFullYear()}-${String(firstDate.getMonth() + 1).padStart(2, '0')}`;
-            if (!cohortMap[joinMonthKey]) cohortMap[joinMonthKey] = { total: 0, retentions: {} };
-            cohortMap[joinMonthKey].total += 1;
-            const uniqueMonthsBought = new Set();
-            sortedOrders.forEach(d => {
-                const diffMonths = (d.getFullYear() - firstDate.getFullYear()) * 12 + (d.getMonth() - firstDate.getMonth());
-                uniqueMonthsBought.add(diffMonths);
-            });
-            uniqueMonthsBought.forEach(mIdx => {
-                cohortMap[joinMonthKey].retentions[mIdx] = (cohortMap[joinMonthKey].retentions[mIdx] || 0) + 1;
-            });
-        });
-        const cohortData = Object.entries(cohortMap).sort().slice(-6).map(([month, stats]) => {
-            const retentionArr = [];
-            for (let i = 0; i <= 5; i++) {
-                const pct = stats.total > 0 ? Math.round(((stats.retentions[i] || 0) / stats.total) * 100) : 0;
-                retentionArr.push(pct);
-            }
-            return { month, users: stats.total, retention: retentionArr };
-        });
-
-        // Other Stats
+        // --- D. STATISTICS: LOCATION & VARIANTS ---
         const variantStats = {}; let _totalSoldItems = 0;
         const provCounts = {}; const cityCounts = {}; const subCounts = {};
 
         filteredData.forEach(item => {
-            const prov = (item[COL_PROVINCE] || '').trim(); const city = (item[COL_CITY] || '').trim(); const sub = (item[COL_SUBDISTRICT] || '').trim();
-            const rev = item[COL_NET_REVENUE] || 0;
-            if(prov && prov !== '-' && prov !== 'unknown') { if(!provCounts[prov]) provCounts[prov]={count:0, revenue:0}; provCounts[prov].count++; provCounts[prov].revenue+=rev; }
-            if(city && city !== '-' && city !== 'unknown') { if(!cityCounts[city]) cityCounts[city]={count:0, revenue:0}; cityCounts[city].count++; cityCounts[city].revenue+=rev; }
-            if(sub && sub !== '-' && sub !== 'unknown') { if(!subCounts[sub]) subCounts[sub]={count:0, revenue:0}; subCounts[sub].count++; subCounts[sub].revenue+=rev; }
+            const prov = (item[COL_PROVINCE] || '').trim();
+            const city = (item[COL_CITY] || '').trim();
+            const sub = (item[COL_SUBDISTRICT] || '').trim();
+            const rev = safeFloat(item[COL_NET_REVENUE]); // GUNAKAN SAFEFLOAT
+
+            if(prov && prov !== '-' && prov.toLowerCase() !== 'unknown') { 
+                if(!provCounts[prov]) provCounts[prov]={count:0, revenue:0}; 
+                provCounts[prov].count++; 
+                provCounts[prov].revenue += rev; 
+            }
+            if(city && city !== '-' && city.toLowerCase() !== 'unknown') { 
+                if(!cityCounts[city]) cityCounts[city]={count:0, revenue:0}; 
+                cityCounts[city].count++; 
+                cityCounts[city].revenue += rev; 
+            }
+            if(sub && sub !== '-' && sub.toLowerCase() !== 'unknown') { 
+                if(!subCounts[sub]) subCounts[sub]={count:0, revenue:0}; 
+                subCounts[sub].count++; 
+                subCounts[sub].revenue += rev; 
+            }
             
             variantColumns.forEach(key => {
                 const qty = parseFloat(item[key] || 0);
@@ -605,7 +562,7 @@ const useProcessedData = (rawData) => {
                     const rawName = key.replace('variant:', '').replace(/_/g, ' ').toUpperCase();
                     if (!variantStats[rawName]) variantStats[rawName] = { name: rawName, totalQuantity: 0, totalOrders: 0, totalRevenue: 0 };
                     variantStats[rawName].totalQuantity += qty; _totalSoldItems += qty;
-                    variantStats[rawName].totalOrders += 1; variantStats[rawName].totalRevenue += (qty * (item[COL_NET_REVENUE]/qty)); 
+                    variantStats[rawName].totalOrders += 1; variantStats[rawName].totalRevenue += (qty * (rev/qty)); 
                 }
             });
         });
@@ -622,7 +579,6 @@ const useProcessedData = (rawData) => {
             customerSegmentationData: finalCustomerData, 
             totalConfirmedRevenue, totalConfirmedOrders, 
             timeAnalysis: { yearly: Object.entries(yearlyStats).map(([k,v])=>({name:k,revenue:v})), quarterly: [], monthly: [] }, 
-            // [FIX 3] Mengembalikan data yang sudah diproses parser aman
             rawTimeData: _rawTimeData, 
             paymentMethodAnalysis: [], customerTypeAnalysis: [], financialEntityAnalysis: [], courierAnalysis: [], 
             heatmapData: heatmapGrid, heatmapMaxRevenue, dailyTrendAnalysis: dailyTrendStats, 
@@ -1210,851 +1166,1290 @@ const CustomerSegmentationView = ({ data, isDigitalMode }) => {
     );
 };
 
-const TimeAnalysisView = ({ rawTimeData }) => {
-    const [selectedYear, setSelectedYear] = useState('All');
-    const availableYears = useMemo(() => {
-        if (!rawTimeData) return [];
-        const years = new Set(rawTimeData.map(d => d.year));
-        return Array.from(years).sort().reverse();
-    }, [rawTimeData]);
+/// --- TIME ANALYSIS VIEW (COMPLETE: GROWTH + STRATEGIC SUMMARY) ---
+const TimeAnalysisView = ({ rawData }) => {
+    // State Filter Tahun
+    const [selectedYear, setSelectedYear] = useState('All');
 
-    const yearlyData = useMemo(() => {
-        if (!rawTimeData) return [];
-        const stats = {};
-        rawTimeData.forEach(d => { stats[d.year] = (stats[d.year] || 0) + d.revenue; });
-        return Object.entries(stats).map(([year, revenue]) => ({ name: year, revenue })).sort((a, b) => a.name.localeCompare(b.name));
-    }, [rawTimeData]);
+    // 1. Helper Format
+    const formatRupiah = (val) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
+    const safeFloat = (val) => {
+        if (typeof val === 'number') return val;
+        if (!val) return 0;
+        const str = val.toString();
+        const cleanStr = str.replace(/[^0-9,-]/g, '').replace(',', '.');
+        const num = parseFloat(cleanStr);
+        return isNaN(num) ? 0 : num;
+    };
 
-    const { quarterlyData, monthlyData } = useMemo(() => {
-        if (!rawTimeData) return { quarterlyData: [], monthlyData: [] };
-        const qStats = { 'Q1': 0, 'Q2': 0, 'Q3': 0, 'Q4': 0 };
-        const mStats = Array(12).fill(0);
-        const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-        const filteredData = selectedYear === 'All' ? rawTimeData : rawTimeData.filter(d => d.year === selectedYear);
+    // 2. Get Available Years
+    const availableYears = useMemo(() => {
+        if (!rawData || rawData.length === 0) return [];
+        const years = new Set();
+        rawData.forEach(item => {
+            const dateStr = item['confirmed_time'] || item['draft_time'];
+            if (!dateStr) return;
+            const date = new Date(dateStr.replace(' ', 'T'));
+            if (!isNaN(date.getTime())) years.add(date.getFullYear());
+        });
+        return Array.from(years).sort((a, b) => b - a);
+    }, [rawData]);
 
-        filteredData.forEach(d => {
-            const mIdx = d.monthIndex;
-            if (mIdx >= 0 && mIdx < 12) {
-                mStats[mIdx] += d.revenue;
-                let quarter = mIdx <= 2 ? 'Q1' : mIdx <= 5 ? 'Q2' : mIdx <= 8 ? 'Q3' : 'Q4';
-                qStats[quarter] += d.revenue;
-            }
-        });
-        return {
-            quarterlyData: Object.entries(qStats).map(([name, revenue]) => ({ name, revenue })),
-            monthlyData: mStats.map((revenue, index) => ({ name: monthNames[index], revenue }))
-        };
-    }, [rawTimeData, selectedYear]);
+    // 3. Data Processing
+    const { yearlyData, quarterlyData, monthlyData, insights } = useMemo(() => {
+        const defaultInsights = {
+            bestYearName: '-', bestYearValue: 0,
+            bestQuarterName: '-', bestQuarterValue: 0,
+            lastMonthGrowth: 0, lastMonthRevenue: 0,
+            avgMonthly: 0
+        };
 
-    if (!rawTimeData || rawTimeData.length === 0) return <p className="p-8 text-center text-gray-500">Belum ada data waktu tersedia.</p>;
+        if (!rawData || rawData.length === 0) {
+            return { yearlyData: [], quarterlyData: [], monthlyData: [], insights: defaultInsights };
+        }
 
-    return (
-        <div className="space-y-8">
-            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                <h3 className="text-xl font-semibold mb-4 text-gray-800 flex items-center"><History className="w-5 h-5 mr-2 text-blue-600" />Tren Pendapatan Tahunan (Time Series)</h3>
-                <div className="h-80 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={yearlyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                            <XAxis dataKey="name" />
-                            <YAxis tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`} />
-                            <Tooltip formatter={(value) => formatRupiah(value)} />
-                            <Legend />
-                            <Line type="monotone" dataKey="revenue" name="Pendapatan Bersih" stroke="#2563eb" strokeWidth={3} dot={{ r: 6 }} activeDot={{ r: 8 }} />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-            <div className="flex items-center justify-between bg-indigo-50 p-4 rounded-lg border border-indigo-100">
-                 <div className="flex items-center space-x-3"><Filter className="w-5 h-5 text-indigo-600" /><span className="font-semibold text-gray-700">Filter Detail Musiman:</span></div>
-                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="block w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md border bg-white shadow-sm">
-                    <option value="All">Semua Tahun</option>
-                    {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
-                </select>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <h3 className="text-lg font-semibold mb-4 text-gray-800 flex items-center justify-between"><span className="flex items-center"><Calendar className="w-5 h-5 mr-2 text-orange-500" /> Pendapatan per Kuartal</span><span className="text-xs px-2 py-1 bg-gray-100 rounded text-gray-500 font-normal">Filter: {selectedYear}</span></h3>
-                    <div className="h-80 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={quarterlyData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" /><XAxis dataKey="name" /><YAxis tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`} /><Tooltip formatter={(value) => formatRupiah(value)} /><Bar dataKey="revenue" name="Revenue" fill="#f97316" radius={[4, 4, 0, 0]} /></BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                     <h3 className="text-lg font-semibold mb-4 text-gray-800 flex items-center justify-between"><span className="flex items-center"><Calendar className="w-5 h-5 mr-2 text-green-500" /> Pendapatan per Bulan</span><span className="text-xs px-2 py-1 bg-gray-100 rounded text-gray-500 font-normal">Filter: {selectedYear}</span></h3>
-                    <div className="h-80 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={monthlyData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" /><XAxis dataKey="name" angle={-45} textAnchor="end" height={60} interval={0} tick={{fontSize: 10}} /><YAxis tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`} /><Tooltip formatter={(value) => formatRupiah(value)} /><Bar dataKey="revenue" name="Revenue" fill="#10b981" radius={[4, 4, 0, 0]} /></BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+        // --- A. DATA GLOBAL (YEARLY) ---
+        const yearsMap = {};
+        rawData.forEach(item => {
+            const dateStr = item['confirmed_time'] || item['draft_time'];
+            if (!dateStr) return;
+            const date = new Date(dateStr.replace(' ', 'T'));
+            if (isNaN(date.getTime())) return;
+            const rev = safeFloat(item['net_revenue']);
+            const year = date.getFullYear();
+            if (!yearsMap[year]) yearsMap[year] = 0; 
+            yearsMap[year] += rev;
+        });
+
+        const currentYear = new Date().getFullYear();
+        const yearlyArray = Object.entries(yearsMap)
+            .map(([name, value]) => ({ name: parseInt(name), value }))
+            .filter(d => d.name >= currentYear - 9)
+            .sort((a, b) => a.name - b.name)
+            .map((curr, i, arr) => {
+                const prev = arr[i-1];
+                const growth = (i > 0 && prev.value > 0) ? ((curr.value - prev.value) / prev.value) * 100 : 0;
+                const isSelected = selectedYear !== 'All' && curr.name === parseInt(selectedYear);
+                return { ...curr, growth, fill: isSelected ? '#F59E0B' : '#4F46E5' };
+            });
+
+        // --- B. DATA TERFILTER (QUARTERLY & MONTHLY) ---
+        const filteredRawData = selectedYear === 'All' 
+            ? rawData 
+            : rawData.filter(item => {
+                const d = new Date((item['confirmed_time'] || item['draft_time']).replace(' ', 'T'));
+                return !isNaN(d.getTime()) && d.getFullYear() === parseInt(selectedYear);
+            });
+
+        const quartersMap = { 'Q1': 0, 'Q2': 0, 'Q3': 0, 'Q4': 0 };
+        const monthsMap = {};
+        let totalRevenueFiltered = 0;
+
+        filteredRawData.forEach(item => {
+            const dateStr = item['confirmed_time'] || item['draft_time'];
+            if (!dateStr) return;
+            const date = new Date(dateStr.replace(' ', 'T'));
+            if (isNaN(date.getTime())) return;
+
+            const rev = safeFloat(item['net_revenue']);
+            const month = date.getMonth();
+            
+            totalRevenueFiltered += rev;
+
+            // Quarterly
+            const q = Math.floor(month / 3) + 1; 
+            quartersMap[`Q${q}`] += rev;
+
+            // Monthly
+            const monthKey = selectedYear === 'All' 
+                ? `${date.getFullYear()}-${String(month + 1).padStart(2, '0')}` 
+                : String(month + 1).padStart(2, '0');
+            
+            if (!monthsMap[monthKey]) monthsMap[monthKey] = 0; 
+            monthsMap[monthKey] += rev;
+        });
+
+        // Format Quarterly
+        const quarterlyArray = Object.entries(quartersMap).map(([name, value], i, arr) => {
+            const prevVal = i > 0 ? arr[i-1][1] : 0;
+            const growth = (i > 0 && prevVal > 0) ? ((value - prevVal) / prevVal) * 100 : 0;
+            return { name, value, growth };
+        });
+
+        // Format Monthly
+        const monthlyArray = Object.entries(monthsMap)
+            .map(([key, value]) => ({ key, value, name: key }))
+            .sort((a, b) => a.key.localeCompare(b.key))
+            .map((curr, i, arr) => {
+                const prev = arr[i-1];
+                const growth = (i > 0 && prev.value > 0) ? ((curr.value - prev.value) / prev.value) * 100 : 0;
+                
+                let label = curr.key;
+                if (selectedYear !== 'All') {
+                    const dateObj = new Date(parseInt(selectedYear), parseInt(curr.key)-1);
+                    label = dateObj.toLocaleDateString('id-ID', { month: 'short' });
+                } else {
+                    const [y, m] = curr.key.split('-');
+                    const dateObj = new Date(parseInt(y), parseInt(m)-1);
+                    label = dateObj.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
+                }
+                return { ...curr, name: label, growth };
+            });
+
+        // Insights Calculation
+        const bestYear = yearlyArray.length > 0 ? yearlyArray.reduce((max, c) => c.value > max.value ? c : max) : { name: '-', value: 0 };
+        const bestQuarter = quarterlyArray.length > 0 ? quarterlyArray.reduce((max, c) => c.value > max.value ? c : max) : { name: '-', value: 0 };
+        const lastMonth = monthlyArray.length > 0 ? monthlyArray[monthlyArray.length - 1] : { growth: 0, value: 0 };
+        const avgRev = monthlyArray.length > 0 ? totalRevenueFiltered / monthlyArray.length : 0;
+
+        return { 
+            yearlyData: yearlyArray, 
+            quarterlyData: quarterlyArray, 
+            monthlyData: monthlyArray,
+            insights: {
+                bestYearName: bestYear.name, bestYearValue: bestYear.value,
+                bestQuarterName: bestQuarter.name, bestQuarterValue: bestQuarter.value,
+                lastMonthGrowth: lastMonth.growth || 0, lastMonthRevenue: lastMonth.value || 0,
+                avgMonthly: avgRev
+            }
+        };
+    }, [rawData, selectedYear]);
+
+    // Custom Labels
+    const GrowthLabel = (props) => {
+        const { x, y, width, index, data } = props;
+        const growth = data[index].growth;
+        if (index === 0) return null;
+        const isPositive = growth >= 0;
+        return (
+            <text x={x + width / 2} y={y - 25} fill={isPositive ? "#10B981" : "#EF4444"} textAnchor="middle" dominantBaseline="middle" fontSize={11} fontWeight="bold">
+                {isPositive ? '+' : ''}{growth.toFixed(1)}%
+            </text>
+        );
+    };
+
+    const CustomizedQuarterLabel = (props) => {
+        const { x, y, width, index, data } = props;
+        const growth = data[index].growth;
+        if (index === 0) return null;
+        const isPositive = growth >= 0;
+        return (
+            <text x={x + width / 2} y={y - 25} fill={isPositive ? "#10B981" : "#EF4444"} textAnchor="middle" dominantBaseline="middle" fontSize={11} fontWeight="bold">
+                {isPositive ? '+' : ''}{growth.toFixed(1)}%
+            </text>
+        );
+    };
+
+    // Insight Logic
+    const getStrategyText = () => {
+        const { lastMonthGrowth, bestQuarterName } = insights;
+        let text = "";
+        if (lastMonthGrowth >= 10) text = "Momentum sangat positif! Tingkatkan budget iklan untuk memaksimalkan tren naik ini.";
+        else if (lastMonthGrowth > 0) text = "Pertumbuhan stabil. Pertahankan strategi saat ini dan fokus pada retensi pelanggan.";
+        else if (lastMonthGrowth > -10) text = "Terjadi sedikit penurunan. Cek performa kreatif iklan atau tawarkan promo bundling.";
+        else text = "Penurunan signifikan terdeteksi. Segera evaluasi harga produk atau strategi kompetitor.";
+        
+        text += ` Persiapkan stok maksimal menjelang ${bestQuarterName} (Kuartal Terbaik).`;
+        return text;
+    };
+
+    return (
+        <div className="space-y-8 animate-fade-in">
+            {/* HEADER & FILTER */}
+            <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div>
+                    <h3 className="text-xl font-bold text-gray-800 flex items-center">
+                        <TrendingUp className="w-6 h-6 mr-2 text-indigo-600" /> Analisis Waktu & Pertumbuhan
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1">Evaluasi performa strategis (Growth) Tahunan, Kuartal, dan Bulanan.</p>
+                </div>
+                
+                {/* YEAR FILTER DROPDOWN */}
+                <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold text-gray-600">Pilih Tahun:</span>
+                    <select 
+                        value={selectedYear} 
+                        onChange={(e) => setSelectedYear(e.target.value)} 
+                        className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 font-bold cursor-pointer hover:bg-gray-100 transition-colors"
+                    >
+                        <option value="All">Semua Tahun</option>
+                        {availableYears.map(year => (
+                            <option key={year} value={year}>{year}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            {/* --- NEW: KESIMPULAN ANALISIS PERTUMBUHAN --- */}
+            <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-cyan-50 p-6 rounded-xl shadow-md border border-blue-100">
+                <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4">
+                    <Award className="w-5 h-5 mr-2 text-blue-600" /> Kesimpulan Kesehatan Bisnis
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                    {/* Card 1: Best Year */}
+                    <div className="bg-white p-4 rounded-lg border border-blue-100 shadow-sm flex flex-col justify-center">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Tahun Keemasan</p>
+                        <p className="text-lg font-extrabold text-blue-700 leading-tight">{insights.bestYearName}</p>
+                        <p className="text-[10px] text-blue-400 mt-1">Total: {formatRupiah(insights.bestYearValue)}</p>
+                    </div>
+                    {/* Card 2: Best Quarter */}
+                    <div className="bg-white p-4 rounded-lg border border-blue-100 shadow-sm flex flex-col justify-center">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Kuartal Terbaik</p>
+                        <p className="text-lg font-extrabold text-purple-600 leading-tight">{insights.bestQuarterName}</p>
+                        <p className="text-[10px] text-gray-400 mt-1">Musim penjualan tertinggi</p>
+                    </div>
+                    {/* Card 3: Last Month Trend */}
+                    <div className="bg-white p-4 rounded-lg border border-blue-100 shadow-sm flex flex-col justify-center">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Tren Bulan Terakhir</p>
+                        <div className={`flex items-center text-lg font-extrabold ${insights.lastMonthGrowth >= 0 ? 'text-green-600' : 'text-red-600'} leading-tight`}>
+                            {insights.lastMonthGrowth >= 0 ? <TrendingUp className="w-4 h-4 mr-1"/> : <TrendingDown className="w-4 h-4 mr-1"/>}
+                            {Math.abs(insights.lastMonthGrowth).toFixed(1)}%
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1">vs bulan sebelumnya</p>
+                    </div>
+                    {/* Card 4: Average */}
+                    <div className="bg-white p-4 rounded-lg border border-blue-100 shadow-sm flex flex-col justify-center">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Rata-rata Bulanan</p>
+                        <p className="text-lg font-extrabold text-gray-700 leading-tight">{formatRupiah(insights.avgMonthly)}</p>
+                        <p className="text-[10px] text-gray-400 mt-1">Performa stabil {selectedYear === 'All' ? '(All Time)' : `(${selectedYear})`}</p>
+                    </div>
+                </div>
+                <div className="bg-white/60 p-4 rounded-lg border border-blue-100 text-sm text-gray-700 leading-relaxed shadow-inner">
+                    <p>
+                        <span className="font-bold text-blue-700">💡 Rekomendasi Strategis:</span> {getStrategyText()}
+                    </p>
+                </div>
+            </div>
+
+            {/* === BAGIAN 1: STRATEGIC GROWTH === */}
+            
+            {/* YEARLY (TETAP MENAMPILKAN SEMUA TAHUN UNTUK KONTEKS) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="bg-gradient-to-br from-indigo-600 to-blue-700 p-6 rounded-xl shadow-lg text-white flex flex-col justify-between">
+                    <div>
+                        <h4 className="text-white/80 font-bold text-sm uppercase tracking-wider mb-2">Tahun Terbaik (All Time)</h4>
+                        <div className="flex items-baseline gap-2"><h2 className="text-4xl font-extrabold">{insights.bestYearName}</h2></div>
+                        <p className="mt-2 text-indigo-100 text-sm">Total Omzet: <span className="font-bold text-white">{formatRupiah(insights.bestYearValue)}</span></p>
+                    </div>
+                    <div className="mt-6 pt-4 border-t border-white/20"><p className="text-xs text-indigo-100 italic">"Grafik disamping selalu menampilkan data 10 tahun terakhir."</p></div>
+                </div>
+                <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Calendar className="w-5 h-5 mr-2 text-indigo-600" /> Tren Tahunan (Global)</h3>
+                    <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <ComposedChart data={yearlyData} margin={{ top: 35, right: 20, bottom: 0, left: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                                <XAxis dataKey="name" tick={{fontSize: 12}} />
+                                <YAxis yAxisId="left" tickFormatter={(val) => (val/1000000).toFixed(0) + 'jt'} fontSize={11} />
+                                <YAxis yAxisId="right" orientation="right" hide/>
+                                <Tooltip formatter={(value, name) => [name === 'Growth' ? (value||0).toFixed(2)+'%' : formatRupiah(value), name === 'revenue' ? 'Omzet' : 'Pertumbuhan']} />
+                                <Bar yAxisId="left" dataKey="value" name="revenue" barSize={40} radius={[4, 4, 0, 0]}>
+                                    {yearlyData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.fill || '#4F46E5'} />
+                                    ))}
+                                    <LabelList dataKey="value" position="top" formatter={(val) => (val/1000000).toFixed(0) + 'jt'} fontSize={10} fill="#6366f1" />
+                                    <LabelList content={<GrowthLabel data={yearlyData} />} />
+                                </Bar>
+                                <Line yAxisId="right" type="monotone" dataKey="growth" name="Growth" stroke="#F59E0B" strokeWidth={2} dot={{r:4}} />
+                            </ComposedChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+
+            {/* QUARTERLY (DATA MENGIKUTI FILTER TAHUN) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                    <div className="flex justify-between items-start mb-4">
+                        <h3 className="text-lg font-bold text-gray-800 flex items-center"><PieChartIcon className="w-5 h-5 mr-2 text-purple-600" /> Performa Kuartal {selectedYear !== 'All' ? `(${selectedYear})` : '(Gabungan)'}</h3>
+                        <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2 py-1 rounded">QoQ</span>
+                    </div>
+                    <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={quarterlyData} margin={{ top: 30, right: 10, left: 0, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                                <XAxis dataKey="name" tick={{fontSize: 12, fontWeight:'bold'}} />
+                                <YAxis hide />
+                                <Tooltip formatter={(val) => formatRupiah(val)} />
+                                <Bar dataKey="value" name="Omzet" fill="#8B5CF6" radius={[6, 6, 0, 0]} barSize={50}>
+                                    <LabelList content={<CustomizedQuarterLabel data={quarterlyData} />} />
+                                    <LabelList dataKey="value" position="insideBottom" formatter={(val) => (val/1000000).toFixed(0) + 'jt'} fill="white" fontSize={11} fontWeight="bold" />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col justify-center">
+                    <h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">Rincian Kuartal</h3>
+                    <div className="space-y-4">
+                        {quarterlyData.map((q, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-sm ${['bg-purple-500', 'bg-pink-500', 'bg-yellow-500', 'bg-green-500'][idx]}`}>{q.name}</div>
+                                    <div><p className="text-sm font-bold text-gray-700">Kuartal {idx + 1}</p></div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-sm font-bold text-gray-800">{formatRupiah(q.value)}</p>
+                                    {idx > 0 && (
+                                        <div className={`inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded mt-1 ${q.growth >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                            {q.growth >= 0 ? <TrendingUp className="w-3 h-3 mr-1"/> : <TrendingDown className="w-3 h-3 mr-1"/>}
+                                            {Math.abs(q.growth).toFixed(1)}%
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* MONTHLY (DATA MENGIKUTI FILTER TAHUN) */}
+            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                <div className="flex flex-col md:flex-row justify-between items-center mb-6">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center"><Activity className="w-5 h-5 mr-2 text-green-600" /> Tren Bulanan {selectedYear !== 'All' ? `(${selectedYear})` : ''}</h3>
+                    <div className="flex items-center gap-2 mt-2 md:mt-0">
+                        <span className="text-xs text-gray-500">Bulan Terakhir:</span>
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${insights.lastMonthGrowth >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{insights.lastMonthGrowth >= 0 ? '+' : ''}{(insights.lastMonthGrowth || 0).toFixed(2)}%</span>
+                    </div>
+                </div>
+                <div className="h-80 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <defs><linearGradient id="colorMonthly" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10B981" stopOpacity={0.8}/><stop offset="95%" stopColor="#10B981" stopOpacity={0}/></linearGradient></defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0"/>
+                            <XAxis dataKey="name" tick={{fontSize: 10}} interval="preserveStartEnd" />
+                            <YAxis tickFormatter={(val) => (val/1000000).toFixed(0) + 'jt'} fontSize={11} />
+                            <Tooltip formatter={(value, name) => [name === 'growth' ? (value||0).toFixed(2)+'%' : formatRupiah(value), name === 'value' ? 'Omzet' : 'Pertumbuhan']} />
+                            <Legend />
+                            <Area type="monotone" dataKey="value" name="Omzet" stroke="#10B981" fillOpacity={1} fill="url(#colorMonthly)" strokeWidth={2} />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
+                {/* LIST BULANAN (URUT JAN-DES ATAU KRONOLOGIS) */}
+                <div className="mt-4 flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
+                    {monthlyData.slice(-12).map((m, i) => (
+                        <div key={i} className="min-w-[120px] p-4 rounded-xl border border-gray-100 bg-white shadow-sm flex-shrink-0 flex flex-col justify-between hover:shadow-md transition-shadow">
+                            <div><p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{m.name}</p><p className="text-base font-extrabold text-gray-800 mt-1">{(m.value / 1000000).toFixed(1)}jt</p></div>
+                            <div className="mt-3">{m.growth !== 0 ? (<div className={`flex items-center text-[10px] font-bold ${m.growth >= 0 ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'} px-2 py-1 rounded-md w-fit`}>{m.growth >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}{Math.abs(m.growth).toFixed(1)}%</div>) : <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-1 rounded-md">-</span>}</div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
 };
 
-const HeatmapAnalysisView = ({ heatmapData, maxRevenue }) => {
-    const hours = Array.from({ length: 24 }, (_, i) => i);
-    const days = Array.from({ length: 31 }, (_, i) => i + 1);
-    const getCellColor = (value) => { if (value === 0) return 'bg-gray-50'; const opacity = Math.min(Math.max((value / maxRevenue), 0.1), 1); return `rgba(79, 70, 229, ${opacity})`; };
-    const getTextColor = (value) => { if (value === 0) return 'text-gray-300'; const opacity = value / maxRevenue; return opacity > 0.5 ? 'text-white' : 'text-gray-800'; };
-    if (!heatmapData || heatmapData.length === 0) return null;
+// --- HEATMAP & OPERATIONAL VIEW (COMPLETE: WITH DATE FILTER) ---
+const HeatmapAnalysisView = ({ rawData }) => {
+    // 1. State Filter Tanggal
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
 
-    return (
-        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-            <h3 className="text-xl font-semibold mb-4 text-gray-800 flex items-center"><Grid3X3 className="w-5 h-5 mr-2 text-indigo-600" />Heatmap Waktu Pembelian (Jam vs Tanggal)</h3>
-            <div className="overflow-x-auto pb-4">
-                <div className="min-w-[1000px]">
-                    <div className="grid grid-cols-[60px_repeat(24,1fr)] gap-1 mb-1"><div className="text-xs font-bold text-gray-400 flex items-end justify-center pb-1">Tgl/Jam</div>{hours.map(hour => (<div key={hour} className="text-[10px] font-bold text-gray-500 text-center">{hour.toString().padStart(2, '0')}</div>))}</div>
-                    {days.map((day, dayIndex) => (
-                        <div key={day} className="grid grid-cols-[60px_repeat(24,1fr)] gap-1 mb-1"><div className="text-xs font-bold text-gray-600 flex items-center justify-center bg-gray-100 rounded-sm h-8">Tgl {day}</div>{hours.map(hour => { const revenue = heatmapData[dayIndex] ? heatmapData[dayIndex][hour] : 0; return (<div key={`${day}-${hour}`} className="h-8 rounded-sm flex items-center justify-center relative group transition-all hover:ring-2 hover:ring-indigo-400 hover:z-10 cursor-pointer" style={{ backgroundColor: revenue > 0 ? getCellColor(revenue) : '#f9fafb' }}><span className={`text-[9px] font-semibold ${getTextColor(revenue)} opacity-0 group-hover:opacity-100`}>{revenue > 0 ? '•' : ''}</span><div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 bg-gray-900 text-white text-xs rounded-md py-2 px-3 opacity-0 group-hover:opacity-100 pointer-events-none z-20 shadow-xl"><p className="font-bold border-b border-gray-700 pb-1 mb-1">Tanggal {day}, Pukul {hour}:00</p><p>Net Revenue:</p><p className="text-green-300 font-bold text-sm">{formatRupiah(revenue)}</p></div></div>);})}</div>
-                    ))}
-                </div>
-            </div>
-            <div className="mt-4 flex items-center justify-end text-xs text-gray-500 space-x-4"><div className="flex items-center"><div className="w-4 h-4 bg-gray-50 border border-gray-200 mr-2 rounded-sm"></div><span>Tidak Ada Transaksi</span></div><div className="flex items-center"><div className="w-4 h-4 mr-2 rounded-sm" style={{ backgroundColor: 'rgba(79, 70, 229, 0.3)' }}></div><span>Low Revenue</span></div><div className="flex items-center"><div className="w-4 h-4 mr-2 rounded-sm" style={{ backgroundColor: 'rgba(79, 70, 229, 1)' }}></div><span>High Revenue</span></div></div>
-        </div>
-    );
+    // Helper Format
+    const formatRupiah = (val) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
+    const safeFloat = (val) => typeof val === 'number' ? val : parseFloat((val || '0').toString().replace(/[^0-9,-]/g, '').replace(',', '.'));
+
+    const { dayHeatmap, dateHeatmap, dayData, hourData, paydayData, maxHeatDay, maxHeatDate, heatmapInsights } = useMemo(() => {
+        if (!rawData || rawData.length === 0) return { dayHeatmap: [], dateHeatmap: [], dayData: [], hourData: [], paydayData: [], maxHeatDay: 0, maxHeatDate: 0, heatmapInsights: {} };
+
+        // Setup Filter Tanggal
+        const start = startDate ? new Date(startDate) : new Date('1970-01-01'); start.setHours(0,0,0,0);
+        const end = endDate ? new Date(endDate) : new Date('2099-12-31'); end.setHours(23,59,59,999);
+
+        // 1. Containers
+        const gridDay = Array(7).fill(0).map(() => Array(24).fill(0)); 
+        const gridDate = Array(31).fill(0).map(() => Array(24).fill(0)); 
+        const daysMap = [0, 0, 0, 0, 0, 0, 0]; // Revenue
+        const hoursMap = Array(24).fill(0); // Frequency
+        const paydayStats = { payday: 0, nonPayday: 0 }; 
+
+        let maxValDay = 0;
+        let maxValDate = 0;
+        
+        // Variables for Insights
+        let peakDayIdx = 0;
+        let peakHourIdx = 0;
+        let peakVal = 0;
+
+        // 2. Loop Data
+        rawData.forEach(item => {
+            const dateStr = item['confirmed_time'] || item['draft_time'];
+            if (!dateStr) return;
+            const date = new Date(dateStr.replace(' ', 'T'));
+            if (isNaN(date.getTime())) return;
+
+            // --- FILTER LOGIC ---
+            if (date < start || date > end) return; 
+            // --------------------
+
+            const rev = safeFloat(item['net_revenue']);
+            const day = date.getDay(); 
+            const hour = date.getHours(); 
+            const dateNum = date.getDate(); 
+
+            // Heatmap Day
+            gridDay[day][hour] += 1;
+            if (gridDay[day][hour] > maxValDay) maxValDay = gridDay[day][hour];
+            
+            // Track Absolute Peak Time (Specific Day & Hour)
+            if (gridDay[day][hour] > peakVal) {
+                peakVal = gridDay[day][hour];
+                peakDayIdx = day;
+                peakHourIdx = hour;
+            }
+
+            // Heatmap Date
+            if (dateNum >= 1 && dateNum <= 31) {
+                gridDate[dateNum - 1][hour] += 1;
+                if (gridDate[dateNum - 1][hour] > maxValDate) maxValDate = gridDate[dateNum - 1][hour];
+            }
+
+            daysMap[day] += rev;
+            hoursMap[hour] += 1;
+
+            if (dateNum >= 25 || dateNum <= 5) paydayStats.payday += rev;
+            else paydayStats.nonPayday += rev;
+        });
+
+        // 3. Format Data
+        const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        const _dayData = daysMap.map((val, i) => ({ name: dayNames[i], value: val }));
+        const _hourData = hoursMap.map((val, i) => ({ name: `${i}:00`, value: val }));
+        const _paydayData = [
+            { name: 'Periode Gajian (Tgl 25-5)', value: paydayStats.payday, fill: '#10B981' },
+            { name: 'Tanggal Tua (Tgl 6-24)', value: paydayStats.nonPayday, fill: '#F59E0B' }
+        ];
+
+        // 4. Generate Automated Insights (Safe Check)
+        const bestDayObj = _dayData.reduce((max, c) => c.value > max.value ? c : max, {name:'-', value:0});
+        const bestHourObj = _hourData.reduce((max, c) => c.value > max.value ? c : max, {name:'-', value:0});
+        
+        let paydayWinner = "Data Kosong";
+        if (paydayStats.payday > 0 || paydayStats.nonPayday > 0) {
+            paydayWinner = paydayStats.payday > paydayStats.nonPayday ? "Saat Gajian" : "Tanggal Tua";
+        }
+
+        return { 
+            dayHeatmap: gridDay, dateHeatmap: gridDate, dayData: _dayData, hourData: _hourData, paydayData: _paydayData, 
+            maxHeatDay: maxValDay, maxHeatDate: maxValDate,
+            heatmapInsights: {
+                primeTimeDay: dayNames[peakDayIdx] || '-',
+                primeTimeHour: `${peakHourIdx}:00`,
+                bestRevenueDay: bestDayObj.name,
+                bestRevenueVal: bestDayObj.value,
+                busiestHour: bestHourObj.name,
+                paydayTrend: paydayWinner
+            }
+        };
+    }, [rawData, startDate, endDate]); // Dependency updated
+
+    const getHeatmapColor = (val, max) => {
+        if (val === 0) return 'bg-gray-50';
+        const pct = max > 0 ? val / max : 0;
+        if (pct < 0.2) return 'bg-indigo-100 text-indigo-800';
+        if (pct < 0.4) return 'bg-indigo-300 text-white';
+        if (pct < 0.6) return 'bg-indigo-400 text-white';
+        if (pct < 0.8) return 'bg-indigo-500 text-white';
+        return 'bg-indigo-700 text-white font-bold';
+    };
+
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+    return (
+        <div className="space-y-8 animate-fade-in">
+            {/* HEADER & DATE FILTER */}
+            <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div>
+                    <h3 className="text-xl font-bold text-gray-800 flex items-center">
+                        <Activity className="w-6 h-6 mr-2 text-indigo-600" /> Analisis Pola Aktivitas (Heatmap)
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1">Temukan waktu "Prime Time" pelanggan Anda berbelanja.</p>
+                </div>
+                
+                {/* DATE FILTER INPUTS */}
+                <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200 shadow-sm">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Filter Tgl:</span>
+                    <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="text-xs font-medium border-none bg-transparent p-0 text-gray-700 focus:ring-0 cursor-pointer"/>
+                    <span className="text-gray-400">-</span>
+                    <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="text-xs font-medium border-none bg-transparent p-0 text-gray-700 focus:ring-0 cursor-pointer"/>
+                    {(startDate || endDate) && (
+                        <button onClick={()=>{setStartDate('');setEndDate('');}} className="ml-2 text-red-500 hover:bg-red-50 rounded-full p-1 transition-colors" title="Hapus Filter">
+                            <XCircle className="w-4 h-4"/>
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* --- NEW: KESIMPULAN ANALISIS AKTIVITAS (SUMMARY) --- */}
+            <div className="bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 p-6 rounded-xl shadow-md border border-indigo-100">
+                <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4">
+                    <Zap className="w-5 h-5 mr-2 text-indigo-600" /> Kesimpulan Waktu Terbaik (Prime Time)
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                    {/* Card 1: Prime Time Spesifik */}
+                    <div className="bg-white p-4 rounded-lg border border-indigo-100 shadow-sm flex flex-col justify-center">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Momen Paling Ramai</p>
+                        <p className="text-lg font-extrabold text-indigo-700 leading-tight">
+                            {heatmapInsights.primeTimeDay} <span className="text-sm font-normal text-gray-600">jam</span> {heatmapInsights.primeTimeHour}
+                        </p>
+                        <p className="text-[10px] text-indigo-400 mt-1">Kombinasi Hari & Jam Tertinggi</p>
+                    </div>
+                    {/* Card 2: Hari Terbaik (Omzet) */}
+                    <div className="bg-white p-4 rounded-lg border border-indigo-100 shadow-sm flex flex-col justify-center">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Hari Paling Cuan</p>
+                        <p className="text-lg font-extrabold text-green-600 leading-tight">{heatmapInsights.bestRevenueDay}</p>
+                        <p className="text-[10px] text-gray-400 mt-1">Omzet: {formatRupiah(heatmapInsights.bestRevenueVal)}</p>
+                    </div>
+                    {/* Card 3: Jam Emas */}
+                    <div className="bg-white p-4 rounded-lg border border-indigo-100 shadow-sm flex flex-col justify-center">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Jam Emas (Rata-rata)</p>
+                        <p className="text-lg font-extrabold text-purple-600 leading-tight">Pukul {heatmapInsights.busiestHour}</p>
+                        <p className="text-[10px] text-purple-400 mt-1">Waktu paling aktif setiap harinya</p>
+                    </div>
+                    {/* Card 4: Tren Gajian */}
+                    <div className="bg-white p-4 rounded-lg border border-indigo-100 shadow-sm flex flex-col justify-center">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Tren Pembelian</p>
+                        <p className="text-lg font-extrabold text-orange-600 leading-tight">Dominan {heatmapInsights.paydayTrend}</p>
+                        <p className="text-[10px] text-orange-400 mt-1">Berdasarkan pola tanggal</p>
+                    </div>
+                </div>
+                <div className="bg-white/60 p-4 rounded-lg border border-indigo-100 text-sm text-gray-700 leading-relaxed shadow-inner">
+                    <p>
+                        <span className="font-bold text-indigo-700">💡 Rekomendasi Taktis:</span> Jadwalkan posting konten penting atau broadcast WA pada hari <strong>{heatmapInsights.primeTimeDay}</strong> sekitar pukul <strong>{heatmapInsights.primeTimeHour}</strong> atau <strong>{heatmapInsights.busiestHour}</strong> untuk engagement maksimal. 
+                        Jika ingin mengadakan Flash Sale, lakukan pada hari <strong>{heatmapInsights.bestRevenueDay}</strong>.
+                    </p>
+                </div>
+            </div>
+
+            {/* --- 1. HEATMAP HARI (Minggu - Sabtu) --- */}
+            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                        <Calendar className="w-5 h-5 mr-2 text-blue-600" /> Peta Kesibukan Mingguan (Hari vs Jam)
+                    </h3>
+                    <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full font-bold">Semakin Gelap = Semakin Ramai</span>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-center border-collapse">
+                        <thead>
+                            <tr>
+                                <th className="p-2 text-xs font-bold text-gray-500 border-b border-gray-100 bg-white sticky left-0 z-10">Hari \ Jam</th>
+                                {Array.from({length: 24}).map((_, i) => (
+                                    <th key={i} className="p-1 text-[10px] text-gray-400 font-mono border-b border-gray-100 min-w-[30px]">
+                                        {i.toString().padStart(2,'0')}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {days.map((day, dIdx) => (
+                                <tr key={day}>
+                                    <td className="p-2 text-xs font-bold text-gray-700 text-left border-r border-gray-100 bg-white sticky left-0 z-10">
+                                        {day}
+                                    </td>
+                                    {dayHeatmap[dIdx] && dayHeatmap[dIdx].map((val, hIdx) => (
+                                        <td key={hIdx} className="p-0 border border-white">
+                                            <div 
+                                                className={`w-full h-8 flex items-center justify-center text-[9px] transition-all hover:opacity-80 cursor-pointer ${getHeatmapColor(val, maxHeatDay)}`}
+                                                title={`${day} jam ${hIdx}:00 - ${val} Order`}
+                                            >
+                                                {val > 0 ? val : ''}
+                                            </div>
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* --- 2. HEATMAP TANGGAL (1 - 31) --- */}
+            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                        <MapPin className="w-5 h-5 mr-2 text-red-600" /> Peta Kesibukan Bulanan (Tanggal vs Jam)
+                    </h3>
+                </div>
+                <div className="overflow-x-auto max-h-[500px] custom-scrollbar">
+                    <table className="w-full text-center border-collapse relative">
+                        <thead className="sticky top-0 z-20 bg-white">
+                            <tr>
+                                <th className="p-2 text-xs font-bold text-gray-500 border-b border-gray-100 bg-white sticky left-0 z-30 shadow-sm">Tgl \ Jam</th>
+                                {Array.from({length: 24}).map((_, i) => (
+                                    <th key={i} className="p-1 text-[10px] text-gray-400 font-mono border-b border-gray-100 min-w-[30px] bg-white">
+                                        {i.toString().padStart(2,'0')}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {Array.from({length: 31}).map((_, dateIdx) => (
+                                <tr key={dateIdx}>
+                                    <td className="p-2 text-xs font-bold text-gray-700 border-r border-gray-100 bg-white sticky left-0 z-10 text-center">
+                                        {dateIdx + 1}
+                                    </td>
+                                    {dateHeatmap[dateIdx] && dateHeatmap[dateIdx].map((val, hIdx) => (
+                                        <td key={hIdx} className="p-0 border border-white">
+                                            <div 
+                                                className={`w-full h-6 flex items-center justify-center text-[8px] transition-all hover:opacity-80 cursor-pointer ${getHeatmapColor(val, maxHeatDate)}`}
+                                                title={`Tanggal ${dateIdx + 1} jam ${hIdx}:00 - ${val} Order`}
+                                            >
+                                                {val > 0 ? val : ''}
+                                            </div>
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                <p className="text-xs text-gray-400 italic mt-3 text-center">Scroll ke bawah untuk melihat semua tanggal (1-31).</p>
+            </div>
+
+            {/* --- 3. PAYDAY & DAY OF WEEK --- */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                        <DollarSign className="w-5 h-5 mr-2 text-teal-600" /> Analisis Tanggal Gajian
+                    </h3>
+                    <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={paydayData} layout="vertical" margin={{top: 0, right: 50, left: 0, bottom: 0}}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                                <XAxis type="number" hide />
+                                <YAxis dataKey="name" type="category" width={150} tick={{fontSize: 11, fontWeight: 'bold'}} />
+                                <Tooltip formatter={(val) => formatRupiah(val)} cursor={{fill: 'transparent'}} />
+                                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={40}>
+                                    <LabelList dataKey="value" position="right" formatter={(val) => (val/1000000).toFixed(1) + 'jt'} fontSize={12} fontWeight="bold" />
+                                    {paydayData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <p className="text-xs text-gray-500 italic text-center mt-2">Perbandingan omzet saat orang baru gajian vs tanggal tua.</p>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                        <Calendar className="w-5 h-5 mr-2 text-blue-600" /> Pola Harian (Senin - Minggu)
+                    </h3>
+                    <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={dayData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="name" tick={{fontSize: 11}} />
+                                <YAxis hide />
+                                <Tooltip formatter={(val) => formatRupiah(val)} />
+                                <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]}>
+                                    <LabelList dataKey="value" position="top" formatter={(val) => (val/1000000).toFixed(0) + 'jt'} fontSize={10} fill="#2563EB" />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+
+            {/* --- 4. HOURLY ACTIVITY --- */}
+            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center">
+                    <Clock className="w-5 h-5 mr-2 text-rose-600" /> Jam Kesibukan (Global Trend)
+                </h3>
+                <div className="h-72 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={hourData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id="colorHourHeat" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#E11D48" stopOpacity={0.8}/>
+                                    <stop offset="95%" stopColor="#E11D48" stopOpacity={0}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                            <XAxis dataKey="name" tick={{fontSize: 11}} interval={2} />
+                            <YAxis tick={{fontSize: 11}} />
+                            <Tooltip formatter={(val) => [val + ' Transaksi', 'Frekuensi']} />
+                            <Area type="monotone" dataKey="value" stroke="#E11D48" fillOpacity={1} fill="url(#colorHourHeat)" strokeWidth={3} />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
+                <p className="text-xs text-gray-500 italic text-center mt-2">Grafik ini menunjukkan pukul berapa biasanya transaksi paling sering terjadi.</p>
+            </div>
+        </div>
+    );
 };
 
 const DailyReportView = ({ confirmedOrders, customerSegmentationData, rawData, adsData, setView, isDigitalMode }) => {
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
-    const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('All'); 
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 20;
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState('All'); 
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 20;
 
-    const getDateObj = (dateStr) => { if (!dateStr) return null; return new Date(dateStr.replace(' ', 'T')); };
+    const getDateObj = (dateStr) => { if (!dateStr) return null; return new Date(dateStr.replace(' ', 'T')); };
 
-    const { lostPotential, issueCount } = useMemo(() => {
-        let revenue = 0; let count = 0; const today = new Date();
-        rawData.forEach(order => {
-            const status = (order['order_status'] || '').toLowerCase();
-            const dateStr = order['draft_time'] || order['pending_time'];
-            if (!dateStr) return;
-            const orderDate = new Date(dateStr.replace(' ', 'T'));
-            if (isNaN(orderDate.getTime())) return;
-            const diffTime = Math.abs(today - orderDate);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            if ((status === 'pending' && diffDays > 14) || status === 'rts' || status === 'canceled') { revenue += parseFloat(order[COL_NET_REVENUE] || 0); count++; }
-        });
-        return { lostPotential: revenue, issueCount: count };
-    }, [rawData]);
+    const safeFloat = (val) => {
+        if (typeof val === 'number') return val;
+        if (!val) return 0;
+        const str = val.toString();
+        const cleanStr = str.replace(/[^0-9,-]/g, '').replace(',', '.'); 
+        const num = parseFloat(cleanStr);
+        return isNaN(num) ? 0 : num;
+    };
 
-    const filteredOrders = useMemo(() => {
-        if (!startDate && !endDate) return confirmedOrders;
-        const start = startDate ? new Date(startDate) : new Date('1970-01-01'); start.setHours(0,0,0,0);
-        const end = endDate ? new Date(endDate) : new Date('2099-12-31'); end.setHours(23,59,59,999);
-        return confirmedOrders.filter(item => {
-            const dateStr = item[COL_CONFIRMED_TIME]; if (!dateStr) return false;
-            const itemDate = getDateObj(dateStr); if (!itemDate || isNaN(itemDate.getTime())) return false;
-            return itemDate >= start && itemDate <= end;
-        }).sort((a, b) => getDateObj(b[COL_CONFIRMED_TIME]) - getDateObj(a[COL_CONFIRMED_TIME]));
-    }, [confirmedOrders, startDate, endDate]);
+    const { lostPotential, issueCount } = useMemo(() => {
+        let revenue = 0; let count = 0; const today = new Date();
+        rawData.forEach(order => {
+            const status = (order['order_status'] || '').toLowerCase();
+            const dateStr = order['draft_time'] || order['pending_time'];
+            if (!dateStr) return;
+            const orderDate = new Date(dateStr.replace(' ', 'T'));
+            if (isNaN(orderDate.getTime())) return;
+            const diffTime = Math.abs(today - orderDate);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            if ((status === 'pending' && diffDays > 14) || status === 'rts' || status === 'canceled') { 
+                revenue += safeFloat(order[COL_NET_REVENUE]); 
+                count++; 
+            }
+        });
+        return { lostPotential: revenue, issueCount: count };
+    }, [rawData]);
 
-    const filteredAdSpend = useMemo(() => {
-    // 1. Cek Data Kosong
-    if (!adsData || adsData.length === 0) return 0;
+    const filteredOrders = useMemo(() => {
+        if (!startDate && !endDate) return confirmedOrders;
+        const start = startDate ? new Date(startDate) : new Date('1970-01-01'); start.setHours(0,0,0,0);
+        const end = endDate ? new Date(endDate) : new Date('2099-12-31'); end.setHours(23,59,59,999);
+        return confirmedOrders.filter(item => {
+            const dateStr = item[COL_CONFIRMED_TIME]; if (!dateStr) return false;
+            const itemDate = getDateObj(dateStr); if (!itemDate || isNaN(itemDate.getTime())) return false;
+            return itemDate >= start && itemDate <= end;
+        }).sort((a, b) => getDateObj(b[COL_CONFIRMED_TIME]) - getDateObj(a[COL_CONFIRMED_TIME]));
+    }, [confirmedOrders, startDate, endDate]);
 
-    // 2. Siapkan Tanggal Filter
-    const start = startDate ? new Date(startDate) : new Date('1970-01-01');
-    start.setHours(0, 0, 0, 0);
-    const end = endDate ? new Date(endDate) : new Date('2099-12-31');
-    end.setHours(23, 59, 59, 999);
+    const filteredAdSpend = useMemo(() => {
+        if (!adsData || adsData.length === 0) return 0;
+        const start = startDate ? new Date(startDate) : new Date('1970-01-01'); start.setHours(0, 0, 0, 0);
+        const end = endDate ? new Date(endDate) : new Date('2099-12-31'); end.setHours(23, 59, 59, 999);
 
-    // 3. Hitung Total Spend (Raw)
-    const rawTotal = adsData.reduce((acc, row) => {
-        // A. Validasi Baris (Filter Baris Sampah/Total Bawaan CSV)
-        const name = row[ADS_CAMPAIGN_NAME] || row['campaign_name'];
-        if (!name || ['total', 'results', 'summary'].includes(name.toString().toLowerCase())) {
-            return acc;
+        const rawTotal = adsData.reduce((acc, row) => {
+            const name = row[ADS_CAMPAIGN_NAME] || row['campaign_name'];
+            if (!name || ['total', 'results', 'summary'].includes(name.toString().toLowerCase())) return acc;
+            const spend = parseFloat(row[ADS_AMOUNT_SPENT] || row['amount_spent'] || row['amount_spent__idr'] || 0);
+            if (startDate || endDate) {
+                const dateVal = row['day'] || row['date_start'] || row['date'] || row['reporting_starts'] || row['date_created'];
+                if (dateVal) {
+                    const d = parseAdDate(dateVal);
+                    if (d) { d.setHours(0, 0, 0, 0); if (d >= start && d <= end) return acc + spend; }
+                }
+                return acc;
+            }
+            return acc + spend;
+        }, 0);
+        return rawTotal * 1.11;
+    }, [adsData, startDate, endDate]);
+
+    const filteredRawData = useMemo(() => {
+         if (!rawData) return []; let data = rawData;
+         if (startDate || endDate) {
+             const start = startDate ? new Date(startDate) : new Date('1970-01-01'); start.setHours(0,0,0,0);
+             const end = endDate ? new Date(endDate) : new Date('2099-12-31'); end.setHours(23,59,59,999);
+             data = data.filter(item => {
+                 const dateStr = item['draft_time'] || item['pending_time'] || item['confirmed_time']; if (!dateStr) return false;
+                 const itemDate = getDateObj(dateStr); if (!itemDate || isNaN(itemDate.getTime())) return false;
+                 return itemDate >= start && itemDate <= end;
+             });
+         }
+         return data.sort((a, b) => getDateObj(b['draft_time'] || b[COL_CONFIRMED_TIME]) - getDateObj(a['draft_time'] || a[COL_CONFIRMED_TIME]));
+    }, [rawData, startDate, endDate]);
+
+    const tableData = useMemo(() => {
+        let data = filteredRawData;
+        if (statusFilter !== 'All') { data = data.filter(item => (item['order_status'] || '').toLowerCase() === statusFilter.toLowerCase()); }
+        if (searchTerm) {
+            const lowerTerm = searchTerm.toLowerCase();
+            data = data.filter(order => {
+                return (order[COL_ORDER_ID] || '').toLowerCase().includes(lowerTerm) || (order[COL_NAME] || '').toLowerCase().includes(lowerTerm) || (order[COL_PHONE] || '').toLowerCase().includes(lowerTerm);
+            });
         }
+        return data;
+    }, [filteredRawData, statusFilter, searchTerm]);
 
-        // B. Ambil Nilai Spend
-        const spend = parseFloat(row[ADS_AMOUNT_SPENT] || row['amount_spent'] || row['amount_spent__idr'] || 0);
+    useEffect(() => { setCurrentPage(1); }, [tableData]);
+
+    const totalPages = Math.ceil(tableData.length / itemsPerPage);
+    const currentTableData = tableData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const totalAllOrdersInPeriod = filteredRawData.length;
+    const pendingCount = filteredRawData.filter(o => (o['order_status'] || '').toLowerCase() === 'pending').length;
+
+    const customerSegmentMap = useMemo(() => {
+        const map = new Map(); customerSegmentationData.forEach(c => { map.set(c.name, { name: c.Segment10Name, color: c.Segment10Color }); }); return map;
+    }, [customerSegmentationData]);
+
+    const { totalRevenue, totalGrossRevenue, totalTransactions, aov, totalCustomers, trendData, topProducts, statusBreakdownData, hourlyActivityData, customerTypeChartData, paymentMethodChartData, utmSourceChartData, totalProfit, profitMargin, totalSoldItems, financialEntityChartData, topLocationLists, avgClosingTime } = useMemo(() => {
+        const _totalRevenue = filteredOrders.reduce((sum, item) => sum + safeFloat(item[COL_NET_REVENUE]), 0);
+        const _totalGrossRevenue = filteredOrders.reduce((sum, item) => sum + safeFloat(item[COL_GROSS_REVENUE]), 0); 
+        const _totalTransactions = filteredOrders.length;
+        const _aov = _totalTransactions > 0 ? _totalRevenue / _totalTransactions : 0;
+        let _totalProfit = 0;
         
-        // C. Cek Tanggal (Jika ada filter tanggal)
-        if (startDate || endDate) {
-            const dateVal = row['day'] || row['date_start'] || row['date'] || row['reporting_starts'] || row['date_created'];
+        let totalClosingTimeMinutes = 0;
+        let closedOrdersCount = 0;
+
+        const paymentStats = {};
+        const utmStats = {};
+        const finEntityStats = {};
+        const typeStats = { 'New': { count: 0, revenue: 0 }, 'Repeat': { count: 0, revenue: 0 } };
+        
+        const custFreqMap = {};
+        customerSegmentationData.forEach(c => custFreqMap[c.name] = c.frequency);
+        const processedCustomers = new Set(); 
+
+        filteredOrders.forEach(item => {
+            const netRev = safeFloat(item[COL_NET_REVENUE]);
+            const grossRev = safeFloat(item[COL_GROSS_REVENUE]); 
+            const prodDisc = safeFloat(item[COL_PRODUCT_DISCOUNT]); 
+            const shipDisc = safeFloat(item[COL_SHIPPING_DISCOUNT]); 
+            const cogs = safeFloat(item[COL_COGS]); 
+            const payFee = safeFloat(item[COL_PAYMENT_FEE]); 
+            const shipCost = safeFloat(item[COL_SHIPPING_COST]);
+            _totalProfit += (grossRev - prodDisc - shipDisc) - cogs - payFee - shipCost;
+
+            const pendingStr = item['pending_time'];
+            const confirmStr = item[COL_CONFIRMED_TIME];
+            if (pendingStr && confirmStr) {
+                const d = getDateObj(pendingStr);
+                const c = getDateObj(confirmStr);
+                if (d && c && c > d) {
+                    const diffMins = (c - d) / (1000 * 60);
+                    if (diffMins > 0 && diffMins < 43200) { totalClosingTimeMinutes += diffMins; closedOrdersCount++; }
+                }
+            }
+
+            const payMethod = (item['payment_method'] || item['epayment_provider'] || 'Lainnya').toUpperCase().replace('_', ' ');
+            if (!paymentStats[payMethod]) paymentStats[payMethod] = { count: 0, revenue: 0 };
+            paymentStats[payMethod].count += 1;
+            paymentStats[payMethod].revenue += netRev;
+
+            let source = (item[COL_UTM_SOURCE] || 'Organic/Direct').trim();
+            if (!source || source === '-' || source === '') source = 'Organic/Direct';
+            source = source.charAt(0).toUpperCase() + source.slice(1);
+            if (!utmStats[source]) utmStats[source] = { count: 0, revenue: 0 };
+            utmStats[source].count += 1;
+            utmStats[source].revenue += netRev;
+
+            let entity = (item[COL_FINANCIAL_ENTITY] || '').trim();
+            if(entity && entity !== '-' && entity.toLowerCase() !== 'unknown') {
+                entity = entity.toUpperCase();
+                if (!finEntityStats[entity]) finEntityStats[entity] = { count: 0, revenue: 0 };
+                finEntityStats[entity].count += 1;
+                finEntityStats[entity].revenue += netRev;
+            }
+
+            const name = item[COL_NAME];
+            const freq = custFreqMap[name];
+            const typeKey = (freq && freq > 1) ? 'Repeat' : 'New';
             
-            if (dateVal) {
-                const d = parseAdDate(dateVal);
-                if (d) {
-                    d.setHours(0, 0, 0, 0);
-                    // Jika tanggal masuk rentang, tambahkan spend
-                    if (d >= start && d <= end) {
-                        return acc + spend;
+            typeStats[typeKey].revenue += netRev;
+            if (!processedCustomers.has(name)) {
+                typeStats[typeKey].count += 1;
+                processedCustomers.add(name);
+            }
+        });
+        
+        const _avgClosingTime = closedOrdersCount > 0 ? Math.round(totalClosingTimeMinutes / closedOrdersCount) : 0;
+        const _profitMargin = _totalRevenue > 0 ? (_totalProfit / _totalRevenue) * 100 : 0;
+        const _totalCustomers = new Set(filteredOrders.map(o => o[COL_NAME]).filter(Boolean)).size;
+        
+        const _trendStats = Array(31).fill(null).map((_, i) => ({ day: i + 1, revenue: 0, transactions: 0 }));
+        filteredOrders.forEach(item => {
+            const dateStr = item[COL_CONFIRMED_TIME];
+            if (dateStr) { 
+                const itemDate = getDateObj(dateStr); 
+                if (itemDate && !isNaN(itemDate.getTime())) { 
+                    const dayIndex = itemDate.getDate() - 1; 
+                    if (dayIndex >= 0 && dayIndex < 31) { 
+                        _trendStats[dayIndex].revenue += safeFloat(item[COL_NET_REVENUE]); 
+                        _trendStats[dayIndex].transactions += 1; 
                     }
                 }
             }
-            // Jika tanggal tidak valid atau di luar rentang, jangan tambah apa-apa
-            return acc;
+        });
+
+        const allVariantKeys = new Set(); const sourceData = (rawData && rawData.length > 0) ? rawData : filteredOrders; sourceData.forEach(row => { Object.keys(row).forEach(key => { if (key.startsWith('variant:')) allVariantKeys.add(key); }); });
+        const variantColumns = Array.from(allVariantKeys).map(normalizedKey => ({ rawName: normalizedKey.replace('variant:', '').replace(/_/g, ' ').toUpperCase(), normalized: normalizedKey }));
+        const variantStats = {}; let _totalSoldItems = 0;
+        const provCounts = {}; const cityCounts = {}; const subCounts = {};
+
+        filteredOrders.forEach(item => {
+            const orderRev = safeFloat(item[COL_NET_REVENUE]); 
+            let totalItemsInOrder = 0;
+            variantColumns.forEach(({ normalized }) => { const qty = parseFloat(item[normalized] || 0); if (!isNaN(qty) && qty > 0) totalItemsInOrder += qty; });
+            _totalSoldItems += totalItemsInOrder;
+            variantColumns.forEach(({ rawName, normalized }) => {
+                const quantity = parseFloat(item[normalized] || 0);
+                if (!isNaN(quantity) && quantity > 0) {
+                    if (!variantStats[rawName]) variantStats[rawName] = { name: rawName, totalQuantity: 0, totalRevenue: 0 };
+                    variantStats[rawName].totalQuantity += quantity;
+                    const weightedRev = totalItemsInOrder > 0 ? (quantity / totalItemsInOrder) * orderRev : 0;
+                    variantStats[rawName].totalRevenue += weightedRev;
+                }
+            });
+            const prov = (item[COL_PROVINCE] || '').trim(); const city = (item[COL_CITY] || '').trim(); const sub = (item[COL_SUBDISTRICT] || '').trim();
+            if(prov && prov !== '-' && prov.toLowerCase() !== 'unknown') { if(!provCounts[prov]) provCounts[prov] = { count: 0, revenue: 0 }; provCounts[prov].count += 1; provCounts[prov].revenue += orderRev; }
+            if(city && city !== '-' && city.toLowerCase() !== 'unknown') { if(!cityCounts[city]) cityCounts[city] = { count: 0, revenue: 0 }; cityCounts[city].count += 1; cityCounts[city].revenue += orderRev; }
+            if(sub && sub !== '-' && sub.toLowerCase() !== 'unknown') { if(!subCounts[sub]) subCounts[sub] = { count: 0, revenue: 0 }; subCounts[sub].count += 1; subCounts[sub].revenue += orderRev; }
+        });
+
+        const _topProvinces = Object.entries(provCounts).map(([name, data]) => ({ name, value: data.count, revenue: data.revenue })).sort((a, b) => b.value - a.value).slice(0, 10);
+        const _topCities = Object.entries(cityCounts).map(([name, data]) => ({ name, value: data.count, revenue: data.revenue })).sort((a, b) => b.value - a.value).slice(0, 10);
+        const _topSubdistricts = Object.entries(subCounts).map(([name, data]) => ({ name, value: data.count, revenue: data.revenue })).sort((a, b) => b.value - a.value).slice(0, 10);
+        const _topProducts = Object.values(variantStats).sort((a,b) => b.totalQuantity - a.totalQuantity).slice(0, 10);
+        
+        const statusCounts = {}; filteredRawData.forEach(item => { const status = (item['order_status'] || 'Unknown').toLowerCase().replace(' ', '_'); statusCounts[status] = (statusCounts[status] || 0) + 1; });
+        const _statusBreakdownData = Object.entries(statusCounts).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1).replace('_', ' '), value, color: STATUS_COLORS[name] || '#94a3b8' })).sort((a, b) => b.value - a.value);
+        const hourlyCounts = Array(24).fill(0).map((_, i) => ({ hour: i, count: 0 })); filteredRawData.forEach(item => { const timeStr = item['draft_time'] || item['confirmed_time']; if (timeStr) { const itemDate = getDateObj(timeStr); if (itemDate && !isNaN(itemDate.getTime())) { const hour = itemDate.getHours(); if (hour >= 0 && hour < 24) hourlyCounts[hour].count += 1; }}});
+        const _hourlyActivityData = hourlyCounts.map(d => ({ hour: `${d.hour.toString().padStart(2, '0')}:00`, count: d.count }));
+        
+        const _paymentMethodChartData = Object.entries(paymentStats).map(([name, d]) => ({ name, value: d.count, revenue: d.revenue })).sort((a, b) => b.value - a.value);
+        const _customerTypeChartData = Object.entries(typeStats).map(([name, d]) => ({ name, value: d.count, revenue: d.revenue })).sort((a, b) => b.value - a.value);
+        const _utmSourceChartData = Object.entries(utmStats).map(([name, d]) => ({ name, value: d.count, revenue: d.revenue })).sort((a, b) => b.value - a.value).slice(0, 5);
+        const _financialEntityChartData = Object.entries(finEntityStats).map(([name, d]) => ({ name, value: d.count, revenue: d.revenue })).sort((a, b) => b.value - a.value);
+
+        return { 
+            totalRevenue: _totalRevenue, totalGrossRevenue: _totalGrossRevenue, totalTransactions: _totalTransactions, aov: _aov, totalCustomers: _totalCustomers, trendData: _trendStats, topProducts: _topProducts, statusBreakdownData: _statusBreakdownData, hourlyActivityData: _hourlyActivityData, 
+            customerTypeChartData: _customerTypeChartData, paymentMethodChartData: _paymentMethodChartData, utmSourceChartData: _utmSourceChartData, financialEntityChartData: _financialEntityChartData,
+            totalProfit: _totalProfit, profitMargin: _profitMargin, totalSoldItems: _totalSoldItems, 
+            topLocationLists: { provinces: _topProvinces, cities: _topCities, subdistricts: _topSubdistricts },
+            avgClosingTime: _avgClosingTime
+        };
+    }, [filteredOrders, filteredRawData, customerSegmentationData, rawData]);
+
+    const dailyRealNetProfit = totalProfit - filteredAdSpend;
+    const avgBasketSize = totalTransactions > 0 ? (totalSoldItems / totalTransactions).toFixed(1) : "0";
+    
+    const formatDuration = (minutes) => {
+        if (minutes < 60) return `${minutes} Menit`;
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return `${hours} Jam ${mins} Menit`;
+    };
+
+    const topSpenders = useMemo(() => {
+        const spenderMap = {};
+        filteredOrders.forEach(order => {
+            const name = order[COL_NAME];
+            const revenue = safeFloat(order[COL_NET_REVENUE]);
+            if (!name) return;
+            if (!spenderMap[name]) { spenderMap[name] = { name, revenue: 0, count: 0, city: order[COL_CITY] || '-', province: order[COL_PROVINCE] || '-' }; }
+            spenderMap[name].revenue += revenue; spenderMap[name].count += 1;
+        });
+        return Object.values(spenderMap).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+    }, [filteredOrders]);
+
+    // --- [MISSING PART] LOGIC SUMMARY INSIGHTS ---
+    const summaryInsights = useMemo(() => {
+        const bestProduct = topProducts.length > 0 ? topProducts[0] : null;
+        const bestCity = topLocationLists.cities.length > 0 ? topLocationLists.cities[0] : null;
+        const bestProvince = topLocationLists.provinces.length > 0 ? topLocationLists.provinces[0] : null; 
+        const bestSource = utmSourceChartData.length > 0 ? utmSourceChartData[0] : null;
+        
+        let peakHourObj = { hour: '-', count: 0 };
+        if (hourlyActivityData && hourlyActivityData.length > 0) {
+             peakHourObj = hourlyActivityData.reduce((max, current) => current.count > max.count ? current : max, hourlyActivityData[0]);
         }
 
-        // D. Jika Tidak Ada Filter Tanggal, Langsung Tambah
-        return acc + spend;
-    }, 0);
+        let bestDayObj = { day: '-', revenue: 0 };
+        if (trendData && trendData.length > 0) {
+             bestDayObj = trendData.reduce((max, current) => current.revenue > max.revenue ? current : max, trendData[0]);
+        }
 
-    // 4. Kembalikan Total + PPN 11%
-    return rawTotal * 1.11;
+        return {
+            productName: bestProduct ? bestProduct.name : "-",
+            productQty: bestProduct ? bestProduct.totalQuantity : 0,
+            cityName: bestCity ? bestCity.name : "-",
+            cityCount: bestCity ? bestCity.value : 0,
+            provinceName: bestProvince ? bestProvince.name : "-", 
+            provinceCount: bestProvince ? bestProvince.value : 0, 
+            sourceName: bestSource ? bestSource.name : "-",
+            sourceCount: bestSource ? bestSource.value : 0,
+            revenue: formatRupiah(totalRevenue),
+            trx: totalTransactions,
+            peakHour: peakHourObj.hour,
+            peakHourCount: peakHourObj.count,
+            bestDay: bestDayObj.day, 
+            bestDayRevenue: formatRupiah(bestDayObj.revenue) 
+        };
+    }, [topProducts, topLocationLists, utmSourceChartData, totalRevenue, totalTransactions, hourlyActivityData, trendData]);
 
-}, [adsData, startDate, endDate]);
+    const closingRate = totalAllOrdersInPeriod > 0 ? ((totalTransactions / totalAllOrdersInPeriod) * 100).toFixed(2) : 0;
+    const getProductSummary = (order) => { const variantKeys = Object.keys(order).filter(k => k.startsWith('variant:') && parseFloat(order[k] || 0) > 0); if (variantKeys.length === 0) return '-'; return variantKeys.map(k => { const name = k.replace('variant:', '').replace(/_/g, ' ').toUpperCase(); const qty = order[k]; return `${name} (${qty})`; }).join(', '); };
+    
+    const handleExportDailyReport = () => {
+        if (tableData.length === 0) { alert("Tidak ada data untuk diekspor."); return; }
+        const headers = ["Order ID", "Tanggal Konfirmasi", "Status", "Nama Pelanggan", "No HP", "Email", "Kota", "Provinsi", "Produk (Qty)", "Total Nilai (IDR)", "Kurir", "Metode Bayar"];
+        const rows = tableData.map(item => {
+            const clean = (t) => `"${(t || '').toString().replace(/"/g, '""')}"`;
+            return [ clean(item[COL_ORDER_ID]), clean(item[COL_CONFIRMED_TIME] || item['draft_time']), clean(item['order_status']), clean(item[COL_NAME]), clean(item[COL_PHONE]), clean(item['email']), clean(item[COL_CITY]), clean(item[COL_PROVINCE]), clean(getProductSummary(item)), safeFloat(item[COL_NET_REVENUE]), clean(item[COL_COURIER]), clean(item[COL_PAYMENT_METHOD] || item['epayment_provider']) ].join(",");
+        });
+        const csvContent = [headers.join(","), ...rows].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a"); const fileName = `Laporan_Transaksi_Harian_${new Date().toISOString().slice(0,10)}.csv`;
+        link.setAttribute("href", url); link.setAttribute("download", fileName); document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    };
 
-    const filteredRawData = useMemo(() => {
-         if (!rawData) return []; let data = rawData;
-         if (startDate || endDate) {
-             const start = startDate ? new Date(startDate) : new Date('1970-01-01'); start.setHours(0,0,0,0);
-             const end = endDate ? new Date(endDate) : new Date('2099-12-31'); end.setHours(23,59,59,999);
-             data = data.filter(item => {
-                 const dateStr = item['draft_time'] || item['pending_time'] || item['confirmed_time']; if (!dateStr) return false;
-                 const itemDate = getDateObj(dateStr); if (!itemDate || isNaN(itemDate.getTime())) return false;
-                 return itemDate >= start && itemDate <= end;
-             });
-         }
-         return data.sort((a, b) => getDateObj(b['draft_time'] || b[COL_CONFIRMED_TIME]) - getDateObj(a['draft_time'] || a[COL_CONFIRMED_TIME]));
-    }, [rawData, startDate, endDate]);
-
-    const tableData = useMemo(() => {
-        let data = filteredRawData;
-        if (statusFilter !== 'All') { data = data.filter(item => (item['order_status'] || '').toLowerCase() === statusFilter.toLowerCase()); }
-        if (searchTerm) {
-            const lowerTerm = searchTerm.toLowerCase();
-            data = data.filter(order => {
-                return (order[COL_ORDER_ID] || '').toLowerCase().includes(lowerTerm) || (order[COL_NAME] || '').toLowerCase().includes(lowerTerm) || (order[COL_PHONE] || '').toLowerCase().includes(lowerTerm);
-            });
-        }
-        return data;
-    }, [filteredRawData, statusFilter, searchTerm]);
-
-    useEffect(() => { setCurrentPage(1); }, [tableData]);
-
-    const totalPages = Math.ceil(tableData.length / itemsPerPage);
-    const currentTableData = tableData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    const totalAllOrdersInPeriod = filteredRawData.length;
-    const pendingCount = filteredRawData.filter(o => (o['order_status'] || '').toLowerCase() === 'pending').length;
-
-    const customerSegmentMap = useMemo(() => {
-        const map = new Map(); customerSegmentationData.forEach(c => { map.set(c.name, { name: c.Segment10Name, color: c.Segment10Color }); }); return map;
-    }, [customerSegmentationData]);
-
-    const { totalRevenue, totalGrossRevenue, totalTransactions, aov, totalCustomers, trendData, topProducts, statusBreakdownData, hourlyActivityData, customerTypeChartData, paymentMethodChartData, utmSourceChartData, totalProfit, profitMargin, totalSoldItems, financialEntityChartData, topLocationLists, avgClosingTime } = useMemo(() => {
-        const _totalRevenue = filteredOrders.reduce((sum, item) => sum + (item[COL_NET_REVENUE] || 0), 0);
-        const _totalGrossRevenue = filteredOrders.reduce((sum, item) => sum + (item[COL_GROSS_REVENUE] || 0), 0); 
-        const _totalTransactions = filteredOrders.length;
-        const _aov = _totalTransactions > 0 ? _totalRevenue / _totalTransactions : 0;
-        let _totalProfit = 0;
-        
-        // Operasional Metrics Setup
-        let totalClosingTimeMinutes = 0;
-        let closedOrdersCount = 0;
-
-        filteredOrders.forEach(item => {
-            const grossRev = item[COL_GROSS_REVENUE] || 0; const prodDisc = item[COL_PRODUCT_DISCOUNT] || 0; const shipDisc = item[COL_SHIPPING_DISCOUNT] || 0; const cogs = item[COL_COGS] || 0; const payFee = item[COL_PAYMENT_FEE] || 0; const shipCost = item[COL_SHIPPING_COST] || 0;
-            _totalProfit += (grossRev - prodDisc - shipDisc) - cogs - payFee - shipCost;
-
-            // Closing Time Calculation (Pending -> Confirmed)
-            const pendingStr = item['pending_time'];
-            const confirmStr = item[COL_CONFIRMED_TIME];
-            if (pendingStr && confirmStr) {
-                const d = getDateObj(pendingStr);
-                const c = getDateObj(confirmStr);
-                if (d && c && c > d) {
-                    const diffMins = (c - d) / (1000 * 60); // minutes
-                    if (diffMins > 0 && diffMins < 43200) { // filter outliers (>30 days)
-                        totalClosingTimeMinutes += diffMins;
-                        closedOrdersCount++;
-                    }
-                }
-            }
-        });
-        
-        const _avgClosingTime = closedOrdersCount > 0 ? Math.round(totalClosingTimeMinutes / closedOrdersCount) : 0;
-
-        const _profitMargin = _totalRevenue > 0 ? (_totalProfit / _totalRevenue) * 100 : 0;
-        const _totalCustomers = new Set(filteredOrders.map(o => o[COL_NAME]).filter(Boolean)).size;
-        const _trendStats = Array(31).fill(null).map((_, i) => ({ day: i + 1, revenue: 0, transactions: 0 }));
-        filteredOrders.forEach(item => {
-            const dateStr = item[COL_CONFIRMED_TIME];
-            if (dateStr) { const itemDate = getDateObj(dateStr); if (itemDate && !isNaN(itemDate.getTime())) { const dayIndex = itemDate.getDate() - 1; if (dayIndex >= 0 && dayIndex < 31) { _trendStats[dayIndex].revenue += (item[COL_NET_REVENUE] || 0); _trendStats[dayIndex].transactions += 1; }}}
-        });
-        const allVariantKeys = new Set(); const sourceData = (rawData && rawData.length > 0) ? rawData : filteredOrders; sourceData.forEach(row => { Object.keys(row).forEach(key => { if (key.startsWith('variant:')) allVariantKeys.add(key); }); });
-        const variantColumns = Array.from(allVariantKeys).map(normalizedKey => ({ rawName: normalizedKey.replace('variant:', '').replace(/_/g, ' ').toUpperCase(), normalized: normalizedKey }));
-        const variantStats = {}; let _totalSoldItems = 0;
-        filteredOrders.forEach(item => {
-            const orderRevenue = item[COL_NET_REVENUE] || 0; let totalItemsInOrder = 0;
-            variantColumns.forEach(({ normalized }) => { const qty = parseFloat(item[normalized] || 0); if (!isNaN(qty) && qty > 0) totalItemsInOrder += qty; });
-            _totalSoldItems += totalItemsInOrder;
-            variantColumns.forEach(({ rawName, normalized }) => {
-                const quantity = parseFloat(item[normalized] || 0);
-                if (!isNaN(quantity) && quantity > 0) {
-                    if (!variantStats[rawName]) variantStats[rawName] = { name: rawName, totalQuantity: 0, totalRevenue: 0 };
-                    variantStats[rawName].totalQuantity += quantity;
-                    const weightedRev = totalItemsInOrder > 0 ? (quantity / totalItemsInOrder) * orderRevenue : 0;
-                    variantStats[rawName].totalRevenue += weightedRev;
-                }
-            });
-        });
-        const _topProducts = Object.values(variantStats).sort((a,b) => b.totalQuantity - a.totalQuantity).slice(0, 10);
-        const statusCounts = {}; filteredRawData.forEach(item => { const status = (item['order_status'] || 'Unknown').toLowerCase().replace(' ', '_'); statusCounts[status] = (statusCounts[status] || 0) + 1; });
-        const _statusBreakdownData = Object.entries(statusCounts).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1).replace('_', ' '), value, color: STATUS_COLORS[name] || '#94a3b8' })).sort((a, b) => b.value - a.value);
-        const hourlyCounts = Array(24).fill(0).map((_, i) => ({ hour: i, count: 0 })); filteredRawData.forEach(item => { const timeStr = item['draft_time'] || item['confirmed_time']; if (timeStr) { const itemDate = getDateObj(timeStr); if (itemDate && !isNaN(itemDate.getTime())) { const hour = itemDate.getHours(); if (hour >= 0 && hour < 24) hourlyCounts[hour].count += 1; }}});
-        const _hourlyActivityData = hourlyCounts.map(d => ({ hour: `${d.hour.toString().padStart(2, '0')}:00`, count: d.count }));
-        const uniqueCustTypeMap = new Map(); filteredOrders.forEach(item => { const name = item[COL_NAME]; const type = (item[COL_CUSTOMER_TYPE] || 'Unknown').toUpperCase(); const confirmedTimeStr = item[COL_CONFIRMED_TIME]; if (!name) return; const time = confirmedTimeStr ? new Date(confirmedTimeStr.replace(' ', 'T')).getTime() : 0; if (!uniqueCustTypeMap.has(name)) { uniqueCustTypeMap.set(name, { type, latestTime: time }); } else { const prev = uniqueCustTypeMap.get(name); if (time > prev.latestTime) { prev.type = type; prev.latestTime = time; } } });
-        const typeCounts = {}; uniqueCustTypeMap.forEach(value => { const type = value.type; typeCounts[type] = (typeCounts[type] || 0) + 1; });
-        const _customerTypeChartData = Object.entries(typeCounts).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
-        const paymentCounts = {}; filteredOrders.forEach(item => { const method = (item['payment_method'] || item['epayment_provider'] || 'Lainnya').toUpperCase().replace('_', ' '); paymentCounts[method] = (paymentCounts[method] || 0) + 1; });
-        const _paymentMethodChartData = Object.entries(paymentCounts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-        
-        const provCounts = {};
-        const cityCounts = {}; 
-        const subCounts = {};
-
-        filteredOrders.forEach(item => { 
-            const prov = (item[COL_PROVINCE] || '').trim();
-            const city = (item[COL_CITY] || '').trim();
-            const sub = (item[COL_SUBDISTRICT] || '').trim();
-
-            if(prov && prov !== '-' && prov.toLowerCase() !== 'unknown') provCounts[prov] = (provCounts[prov] || 0) + 1;
-            if(city && city !== '-' && city.toLowerCase() !== 'unknown') cityCounts[city] = (cityCounts[city] || 0) + 1;
-            if(sub && sub !== '-' && sub.toLowerCase() !== 'unknown') subCounts[sub] = (subCounts[sub] || 0) + 1;
-        });
-
-        const _topProvinces = Object.entries(provCounts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
-        const _topCities = Object.entries(cityCounts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
-        const _topSubdistricts = Object.entries(subCounts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
-        
-        const utmCounts = {}; filteredOrders.forEach(item => { let source = (item[COL_UTM_SOURCE] || 'Organic/Direct').trim(); if (!source || source === '-' || source === '') source = 'Organic/Direct'; source = source.charAt(0).toUpperCase() + source.slice(1); utmCounts[source] = (utmCounts[source] || 0) + 1; });
-        const _utmSourceChartData = Object.entries(utmCounts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
-        const finEntityCounts = {}; filteredOrders.forEach(item => { let entity = (item[COL_FINANCIAL_ENTITY] || '').trim(); if(!entity || entity === '-' || entity.toLowerCase() === 'unknown') return; entity = entity.toUpperCase(); finEntityCounts[entity] = (finEntityCounts[entity] || 0) + 1; });
-        const _financialEntityChartData = Object.entries(finEntityCounts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-
-        return { 
-            totalRevenue: _totalRevenue, totalGrossRevenue: _totalGrossRevenue, totalTransactions: _totalTransactions, aov: _aov, totalCustomers: _totalCustomers, trendData: _trendStats, topProducts: _topProducts, statusBreakdownData: _statusBreakdownData, hourlyActivityData: _hourlyActivityData, customerTypeChartData: _customerTypeChartData, paymentMethodChartData: _paymentMethodChartData, 
-            utmSourceChartData: _utmSourceChartData, totalProfit: _totalProfit, profitMargin: _profitMargin, totalSoldItems: _totalSoldItems, financialEntityChartData: _financialEntityChartData,
-            topLocationLists: { provinces: _topProvinces, cities: _topCities, subdistricts: _topSubdistricts },
-            avgClosingTime: _avgClosingTime
-        };
-    }, [filteredOrders, filteredRawData, customerSegmentationData]);
-
-    const dailyRealNetProfit = totalProfit - filteredAdSpend;
-    const avgBasketSize = totalTransactions > 0 ? (totalSoldItems / totalTransactions).toFixed(1) : "0";
-    
-    // Helper untuk format durasi closing
-    const formatDuration = (minutes) => {
-        if (minutes < 60) return `${minutes} Menit`;
-        const hours = Math.floor(minutes / 60);
-        const mins = minutes % 60;
-        return `${hours} Jam ${mins} Menit`;
-    };
-
-    const topSpenders = useMemo(() => {
-        const spenderMap = {};
-        filteredOrders.forEach(order => {
-            const name = order[COL_NAME];
-            const revenue = order[COL_NET_REVENUE] || 0;
-            if (!name) return;
-            
-            if (!spenderMap[name]) {
-                spenderMap[name] = { 
-                    name, 
-                    revenue: 0, 
-                    count: 0, 
-                    city: order[COL_CITY] || '-',
-                    province: order[COL_PROVINCE] || '-'
-                };
-            }
-            spenderMap[name].revenue += revenue;
-            spenderMap[name].count += 1;
-        });
-        return Object.values(spenderMap)
-            .sort((a, b) => b.revenue - a.revenue)
-            .slice(0, 5);
-    }, [filteredOrders]);
-
-    const summaryInsights = useMemo(() => {
-        const bestProduct = topProducts.length > 0 ? topProducts[0] : null;
-        const bestCity = topLocationLists.cities.length > 0 ? topLocationLists.cities[0] : null;
-        const bestProvince = topLocationLists.provinces.length > 0 ? topLocationLists.provinces[0] : null; 
-        const bestSource = utmSourceChartData.length > 0 ? utmSourceChartData[0] : null;
-        
-        let peakHourObj = { hour: '-', count: 0 };
-        if (hourlyActivityData && hourlyActivityData.length > 0) {
-             peakHourObj = hourlyActivityData.reduce((max, current) => current.count > max.count ? current : max, hourlyActivityData[0]);
-        }
-
-        let bestDayObj = { day: '-', revenue: 0 };
-        if (trendData && trendData.length > 0) {
-             bestDayObj = trendData.reduce((max, current) => current.revenue > max.revenue ? current : max, trendData[0]);
-        }
-
-        return {
-            productName: bestProduct ? bestProduct.name : "-",
-            productQty: bestProduct ? bestProduct.totalQuantity : 0,
-            cityName: bestCity ? bestCity.name : "-",
-            cityCount: bestCity ? bestCity.value : 0,
-            provinceName: bestProvince ? bestProvince.name : "-", 
-            provinceCount: bestProvince ? bestProvince.value : 0, 
-            sourceName: bestSource ? bestSource.name : "-",
-            sourceCount: bestSource ? bestSource.value : 0,
-            revenue: formatRupiah(totalRevenue),
-            trx: totalTransactions,
-            peakHour: peakHourObj.hour,
-            peakHourCount: peakHourObj.count,
-            bestDay: bestDayObj.day, 
-            bestDayRevenue: formatRupiah(bestDayObj.revenue) 
-        };
-    }, [topProducts, topLocationLists, utmSourceChartData, totalRevenue, totalTransactions, hourlyActivityData, trendData]);
-
-    const closingRate = totalAllOrdersInPeriod > 0 ? ((totalTransactions / totalAllOrdersInPeriod) * 100).toFixed(2) : 0;
-    const getProductSummary = (order) => { const variantKeys = Object.keys(order).filter(k => k.startsWith('variant:') && parseFloat(order[k] || 0) > 0); if (variantKeys.length === 0) return '-'; return variantKeys.map(k => { const name = k.replace('variant:', '').replace(/_/g, ' ').toUpperCase(); const qty = order[k]; return `${name} (${qty})`; }).join(', '); };
-    
-    const handleExportDailyReport = () => {
-        if (tableData.length === 0) { alert("Tidak ada data untuk diekspor."); return; }
-        
-        const headers = ["Order ID", "Tanggal Konfirmasi", "Status", "Nama Pelanggan", "No HP", "Email", "Kota", "Provinsi", "Produk (Qty)", "Total Nilai (IDR)", "Kurir", "Metode Bayar"];
-        
-        const rows = tableData.map(item => {
-            const clean = (t) => `"${(t || '').toString().replace(/"/g, '""')}"`;
-            return [
-                clean(item[COL_ORDER_ID]),
-                clean(item[COL_CONFIRMED_TIME] || item['draft_time']),
-                clean(item['order_status']),
-                clean(item[COL_NAME]),
-                clean(item[COL_PHONE]),
-                clean(item['email']),
-                clean(item[COL_CITY]),
-                clean(item[COL_PROVINCE]),
-                clean(getProductSummary(item)),
-                item[COL_NET_REVENUE] || 0,
-                clean(item[COL_COURIER]),
-                clean(item[COL_PAYMENT_METHOD] || item['epayment_provider'])
-            ].join(",");
-        });
-
-        const csvContent = [headers.join(","), ...rows].join("\n");
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        const fileName = `Laporan_Transaksi_Harian_${new Date().toISOString().slice(0,10)}.csv`;
-        
-        link.setAttribute("href", url);
-        link.setAttribute("download", fileName);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
-    const handleExportRecovery = () => {
-        if (filteredIssues.length === 0) { alert("Tidak ada data recovery."); return; }
-        const headers = ["No", "Order ID", "Tipe Masalah", "Status", "Nama Pelanggan", "No HP (WA)", "Alamat Lengkap", "Kecamatan", "Kabupaten/Kota", "Provinsi", "Total Nilai", "Hari Sejak Order", "Produk"];
-        const rows = filteredIssues.map((order, index) => {
-            const clean = (t) => `"${(t || '').toString().replace(/"/g, '""')}"`;
-            const variantKey = Object.keys(order).find(k => k.startsWith('variant:') && order[k] > 0);
-            const prodName = variantKey ? variantKey.replace('variant:', '').replace(/_/g, ' ') : 'N/A';
-            
-            return [
-                index + 1,
-                clean(order[COL_ORDER_ID]),
-                clean(order.issueType),
-                clean(order['order_status']),
-                clean(order[COL_NAME]),
-                clean(order[COL_PHONE]), 
-                clean(order[COL_ADDRESS]),
-                clean(order[COL_SUBDISTRICT]),
-                clean(order[COL_CITY]),
-                clean(order[COL_PROVINCE]),
-                order[COL_NET_REVENUE],
-                order.daysSince,
-                clean(prodName)
-            ].join(",");
-        });
-        const csvContent = [headers.join(","), ...rows].join("\n");
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `Data_Recovery_Isu_${new Date().toISOString().slice(0,10)}.csv`);
-        document.body.appendChild(link); link.click(); document.body.removeChild(link);
-    };
-
-    return (
-       <div className="space-y-8">
-    {/* --- PERINGATAN ISU (MERAH) --- */}
-    {issueCount > 0 && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-lg shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center animate-pulse-slow">
-            <div className="flex items-start">
-                <div className="flex-shrink-0"><AlertTriangle className="h-6 w-6 text-red-600" /></div>
-                <div className="ml-3">
-                    <h3 className="text-lg font-bold text-red-800">Peringatan: {issueCount} Pesanan Bermasalah Ditemukan!</h3>
-                    <div className="mt-1 text-sm text-red-700">
-                        <p>Terdapat potensi kehilangan omzet sebesar <span className="font-extrabold">{formatRupiah(lostPotential)}</span> dari pesanan Pending ({'>'}14 hari), RTS, dan Cancel.</p>
+    return (
+       <div className="space-y-8 animate-fade-in">
+            {/* --- PERINGATAN ISU (MERAH) --- */}
+            {issueCount > 0 && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-lg shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center animate-pulse-slow">
+                    <div className="flex items-start">
+                        <div className="flex-shrink-0"><AlertTriangle className="h-6 w-6 text-red-600" /></div>
+                        <div className="ml-3">
+                            <h3 className="text-lg font-bold text-red-800">Peringatan: {issueCount} Pesanan Bermasalah Ditemukan!</h3>
+                            <div className="mt-1 text-sm text-red-700"><p>Terdapat potensi kehilangan omzet sebesar <span className="font-extrabold">{formatRupiah(lostPotential)}</span> dari pesanan Pending ({'>'}14 hari), RTS, dan Cancel.</p></div>
+                        </div>
                     </div>
+                    <button onClick={() => setView('recovery')} className="mt-3 sm:mt-0 flex-shrink-0 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow hover:bg-red-700 transition-colors flex items-center">Lihat & Pulihkan <ArrowRight className="ml-2 w-4 h-4" /></button>
                 </div>
-            </div>
-            <button onClick={() => setView('recovery')} className="mt-3 sm:mt-0 flex-shrink-0 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow hover:bg-red-700 transition-colors flex items-center">Lihat & Pulihkan <ArrowRight className="ml-2 w-4 h-4" /></button>
-        </div>
-    )}
-
-    {/* --- FILTER BAR --- */}
-    <div className="bg-white p-4 rounded-xl shadow border border-indigo-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center space-x-2"><Filter className="w-5 h-5 text-indigo-600" /><h3 className="font-semibold text-gray-800">Filter Laporan:</h3></div>
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-            <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200"><span className="text-xs text-gray-500 font-bold uppercase">Dari</span><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-transparent text-sm font-medium focus:outline-none text-gray-700"/></div>
-            <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200"><span className="text-xs text-gray-500 font-bold uppercase">Sampai</span><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="bg-transparent text-sm font-medium focus:outline-none text-gray-700"/></div>
-            {(startDate || endDate) && (<button onClick={() => { setStartDate(''); setEndDate(''); }} className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors" title="Reset Filter"><XCircle className="w-5 h-5" /></button>)}
-        </div>
-    </div>
-
-    <div className="space-y-6">
-        {/* --- STATISTIK KEUANGAN --- */}
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-indigo-100">
-            <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2">
-                <DollarSign className="w-4 h-4 mr-2 text-green-600" /> Kinerja Keuangan (Financial Performance)
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <StatCard compact title="Total Gross Revenue" value={formatRupiah(totalGrossRevenue)} icon={Wallet} color="#8b5cf6" />
-                <StatCard compact title="Net Revenue" value={formatRupiah(totalRevenue)} icon={DollarSign} color="#2563EB" />
-                <StatCard compact title="Est. Net Profit" value={formatRupiah(totalProfit)} icon={TrendingUp} color="#10B981" description="(Gross - Disc) - COGS" />
-                <StatCard compact title="Total Ad Spend" value={formatRupiah(filteredAdSpend)} icon={Megaphone} color="#EF4444" description="(+Ppn 11%)" />
-                <StatCard compact title="Real Net Profit" value={formatRupiah(dailyRealNetProfit)} icon={Coins} color={dailyRealNetProfit > 0 ? "#10B981" : "#EF4444"} description="Laba Bersih - Ads" />
-                <StatCard compact title="Profit Margin" value={profitMargin.toFixed(1) + "%"} icon={PieChartIcon} color={profitMargin > 30 ? "#10B981" : profitMargin > 15 ? "#F59E0B" : "#EF4444"} />
-            </div>
-        </div>
-
-        {/* --- STATISTIK VOLUME & EFISIENSI --- */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-indigo-100 h-full">
-                <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2">
-                    <ShoppingBag className="w-4 h-4 mr-2 text-purple-600" /> Volume Transaksi
-                </h3>
-                <div className="grid grid-cols-2 gap-3">
-                    <StatCard compact title="Semua Pesanan" value={totalAllOrdersInPeriod} icon={ShoppingBag} color="#6366f1" unit="Order" description="Termasuk Batal/RTS" />
-                    <StatCard compact title="Transaksi Valid" value={totalTransactions} icon={CheckCircle} color="#10B981" unit="Trx" description="Confirmed/Completed" />
-                    <StatCard compact title="Pending Orders" value={pendingCount} icon={AlertTriangle} color="#F59E0B" unit="Order" description="Belum dibayar" />
-                    <StatCard compact title="Pelanggan Unik" value={totalCustomers} icon={Users} color="#06b6d4" unit="Org" />
-                </div>
-            </div>
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-indigo-100 h-full">
-                <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2">
-                    <Activity className="w-4 h-4 mr-2 text-blue-600" /> Efisiensi Operasional
-                </h3>
-                <div className="grid grid-cols-2 gap-3">
-                    <StatCard compact title="Closing Rate" value={closingRate + "%"} icon={Target} color="#EC4899" unit="Conv" description="% Transaksi Valid" />
-                    <StatCard compact title="Avg Closing Time" value={formatDuration(avgClosingTime)} icon={Clock} color="#F59E0B" description="Pending ke Confirmed" />
-                    <StatCard compact title="Avg Basket Size" value={avgBasketSize} icon={Boxes} color="#F97316" unit="Item/Order" />
-                    <StatCard compact title="Total Produk Terjual" value={totalSoldItems.toLocaleString()} icon={Package} color="#d946ef" unit="Pcs" />
-                </div>
-            </div>
-        </div>
-    </div>
-{/* --- BAGIAN YANG HILANG: KESIMPULAN ANALISIS DATA --- */}
-    <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 p-6 rounded-xl shadow-md border border-indigo-100">
-        <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4">
-            <Activity className="w-5 h-5 mr-2 text-indigo-600" /> Kesimpulan Analisis Data
-        </h3>
-        
-        {/* Grid otomatis: 3 kolom untuk Digital, 4 kolom untuk Fisik */}
-        <div className={`grid grid-cols-1 sm:grid-cols-2 ${isDigitalMode ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4 mb-4`}>
-            
-            {/* 1. Produk */}
-            <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
-                <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Produk Paling Laris</p>
-                <p className="text-sm font-bold text-gray-800 line-clamp-2 leading-tight" title={summaryInsights.productName}>{summaryInsights.productName}</p>
-                <p className="text-xs text-indigo-600 font-semibold mt-1">{summaryInsights.productQty.toLocaleString()} Unit Terjual</p>
-            </div>
-
-            {/* 2 & 3. Lokasi (HANYA MUNCUL JIKA MODE FISIK) */}
-            {!isDigitalMode && (
-                <>
-                    <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Kota Top Order</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{summaryInsights.cityName}</p>
-                        <p className="text-xs text-teal-600 font-semibold mt-1">{summaryInsights.cityCount.toLocaleString()} Order</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Provinsi Dominan</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{summaryInsights.provinceName}</p>
-                        <p className="text-xs text-blue-600 font-semibold mt-1">{summaryInsights.provinceCount.toLocaleString()} Order</p>
-                    </div>
-                </>
             )}
 
-            {/* 4. Sumber Trafik */}
-            <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
-                <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Sumber Trafik Utama</p>
-                <p className="text-sm font-bold text-gray-800 line-clamp-1">{summaryInsights.sourceName}</p>
-                <p className="text-xs text-orange-600 font-semibold mt-1">{summaryInsights.sourceCount.toLocaleString()} Konversi</p>
-            </div>
-            
-            {/* 5. Jam Belanja */}
-            <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
-                <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Jam Belanja Tersibuk</p>
-                <p className="text-sm font-bold text-gray-800 line-clamp-1 flex items-center"><Clock className="w-3 h-3 mr-1 text-purple-500"/> {summaryInsights.peakHour}</p>
-                <p className="text-xs text-purple-600 font-semibold mt-1">{summaryInsights.peakHourCount.toLocaleString()} Aktivitas</p>
+            {/* --- FILTER BAR --- */}
+            <div className="bg-white p-4 rounded-xl shadow border border-indigo-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center space-x-2"><Filter className="w-5 h-5 text-indigo-600" /><h3 className="font-semibold text-gray-800">Filter Laporan:</h3></div>
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200"><span className="text-xs text-gray-500 font-bold uppercase">Dari</span><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-transparent text-sm font-medium focus:outline-none text-gray-700"/></div>
+                    <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200"><span className="text-xs text-gray-500 font-bold uppercase">Sampai</span><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="bg-transparent text-sm font-medium focus:outline-none text-gray-700"/></div>
+                    {(startDate || endDate) && (<button onClick={() => { setStartDate(''); setEndDate(''); }} className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors" title="Reset Filter"><XCircle className="w-5 h-5" /></button>)}
+                </div>
             </div>
 
-            {/* 6. Tanggal Omzet */}
-            <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
-                <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Tanggal Omzet Tertinggi</p>
-                <p className="text-sm font-bold text-gray-800 line-clamp-1 flex items-center"><Calendar className="w-3 h-3 mr-1 text-green-500"/> Tgl {summaryInsights.bestDay}</p>
-                <p className="text-xs text-green-600 font-semibold mt-1">{summaryInsights.bestDayRevenue}</p>
-            </div>
+            <div className="space-y-6">
+                {/* --- STATISTIK KEUANGAN --- */}
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-indigo-100">
+                    <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2"><DollarSign className="w-4 h-4 mr-2 text-green-600" /> Kinerja Keuangan (Financial Performance)</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <StatCard compact title="Total Gross Revenue" value={formatRupiah(totalGrossRevenue)} icon={Wallet} color="#8b5cf6" />
+                        <StatCard compact title="Net Revenue" value={formatRupiah(totalRevenue)} icon={DollarSign} color="#2563EB" />
+                        <StatCard compact title="Est. Net Profit" value={formatRupiah(totalProfit)} icon={TrendingUp} color="#10B981" description="(Gross - Disc) - COGS" />
+                        <StatCard compact title="Total Ad Spend" value={formatRupiah(filteredAdSpend)} icon={Megaphone} color="#EF4444" description="(+Ppn 11%)" />
+                        <StatCard compact title="Real Net Profit" value={formatRupiah(dailyRealNetProfit)} icon={Coins} color={dailyRealNetProfit > 0 ? "#10B981" : "#EF4444"} description="Laba Bersih - Ads" />
+                        <StatCard compact title="Profit Margin" value={profitMargin.toFixed(1) + "%"} icon={PieChartIcon} color={profitMargin > 30 ? "#10B981" : profitMargin > 15 ? "#F59E0B" : "#EF4444"} />
+                    </div>
+                </div>
 
-            {/* 7. Total Revenue (Span kolom agar rapi) */}
-            <div className={`bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center ${isDigitalMode ? '' : 'lg:col-span-2'}`}>
-                <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Total Net Revenue (Periode Ini)</p>
-                <p className="text-xl font-bold text-green-700">{summaryInsights.revenue}</p>
-                <p className="text-xs text-gray-500 font-medium mt-1">dari total {summaryInsights.trx} Transaksi Valid</p>
-            </div>
-        </div>
-
-        {/* Text Insight (Kalimatnya juga otomatis menyesuaikan) */}
-        <div className="bg-white/60 p-4 rounded-lg border border-indigo-100 text-sm text-gray-700 leading-relaxed shadow-inner">
-            <p>
-                <span className="font-bold text-indigo-700">💡 Insight Singkat:</span> Performa penjualan periode ini didominasi oleh produk <strong>{summaryInsights.productName}</strong>. 
-                {!isDigitalMode && (
-                    <> Secara geografis, kota dengan pesanan terbanyak adalah <strong>{summaryInsights.cityName}</strong>, sedangkan provinsi dengan kontribusi terbesar adalah <strong>{summaryInsights.provinceName}</strong>.</>
-                )}
-                Mayoritas trafik datang melalui jalur <strong>{summaryInsights.sourceName}</strong>.
-                Secara tren waktu, tanggal <strong>{summaryInsights.bestDay}</strong> mencatatkan omzet tertinggi, sementara jam belanja paling sibuk (rata-rata harian) terjadi pada pukul <strong>{summaryInsights.peakHour}</strong>.
-            </p>
-        </div>
-    </div>
-	
-	{/* --- [BARU DITAMBAHKAN] TREN HARIAN & TOP LISTS (FIXED LAYOUT) --- */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    
-                    {/* GRAFIK TREN (KIRI - LEBAR & FULL HEIGHT) */}
-                    <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col h-full"> 
-                        {/* ^ Tambahkan 'flex flex-col h-full' agar kartu memanjang mengikuti kolom sebelah */}
-                        
-                        <div className="mb-4">
-                            <h3 className="text-xl font-semibold text-gray-800 flex items-center"><Calendar className="w-5 h-5 mr-2 text-indigo-600" />Tren Harian (Akumulasi Tanggal 1 - 31)</h3>
-                            <p className="text-sm text-gray-500 mt-1">Grafik gabungan: Batang untuk Net Revenue dan Garis untuk Jumlah Transaksi (Hanya Confirmed).</p>
+                {/* --- STATISTIK VOLUME & EFISIENSI --- */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="bg-white p-5 rounded-xl shadow-sm border border-indigo-100 h-full">
+                        <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2"><ShoppingBag className="w-4 h-4 mr-2 text-purple-600" /> Volume Transaksi</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                            <StatCard compact title="Semua Pesanan" value={totalAllOrdersInPeriod} icon={ShoppingBag} color="#6366f1" unit="Order" description="Termasuk Batal/RTS" />
+                            <StatCard compact title="Transaksi Valid" value={totalTransactions} icon={CheckCircle} color="#10B981" unit="Trx" description="Confirmed/Completed" />
+                            <StatCard compact title="Pending Orders" value={pendingCount} icon={AlertTriangle} color="#F59E0B" unit="Order" description="Belum dibayar" />
+                            <StatCard compact title="Pelanggan Unik" value={totalCustomers} icon={Users} color="#06b6d4" unit="Org" />
                         </div>
-                        
-                        {/* v Ganti 'h-96' menjadi 'flex-1 min-h-[400px]' agar grafik mengisi sisa ruang kosong */}
-                        <div className="flex-1 w-full min-h-[400px]">
+                    </div>
+                    <div className="bg-white p-5 rounded-xl shadow-sm border border-indigo-100 h-full">
+                        <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2"><Activity className="w-4 h-4 mr-2 text-blue-600" /> Efisiensi Operasional</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                            <StatCard compact title="Closing Rate" value={closingRate + "%"} icon={Target} color="#EC4899" unit="Conv" description="% Transaksi Valid" />
+                            <StatCard compact title="Avg Closing Time" value={formatDuration(avgClosingTime)} icon={Clock} color="#F59E0B" description="Pending ke Confirmed" />
+                            <StatCard compact title="Avg Basket Size" value={avgBasketSize} icon={Boxes} color="#F97316" unit="Item/Order" />
+                            <StatCard compact title="Total Produk Terjual" value={totalSoldItems.toLocaleString()} icon={Package} color="#d946ef" unit="Pcs" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* --- TREN HARIAN & TOP LISTS (FIXED LAYOUT) --- */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col h-full">
+                        <div className="mb-4"><h3 className="text-xl font-semibold text-gray-800 flex items-center"><Calendar className="w-5 h-5 mr-2 text-indigo-600" />Tren Harian (Akumulasi Tanggal 1 - 31)</h3><p className="text-sm text-gray-500 mt-1">Grafik gabungan: Batang untuk Net Revenue dan Garis untuk Jumlah Transaksi (Hanya Confirmed).</p></div>
+                        <div className="flex-1 w-full min-h-[400px]"><ResponsiveContainer width="100%" height="100%"><ComposedChart data={trendData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}><CartesianGrid stroke="#f5f5f5" /><XAxis dataKey="day" label={{ value: 'Tanggal', position: 'insideBottomRight', offset: -5 }} tick={{fontSize: 11}} /><YAxis yAxisId="left" orientation="left" stroke="#2563EB" tickFormatter={(val) => (val/1000).toFixed(0)+'k'} fontSize={11} /><YAxis yAxisId="right" orientation="right" stroke="#F59E0B" fontSize={11} /><Tooltip contentStyle={{borderRadius:'8px', border:'none', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.1)'}} formatter={(value, name) => [name === 'Revenue' ? formatRupiah(value) : value, name]} /><Legend wrapperStyle={{paddingTop: '10px'}}/><Bar yAxisId="left" dataKey="revenue" name="Revenue" barSize={20} fill="#2563EB" radius={[4, 4, 0, 0]} /><Line yAxisId="right" type="monotone" dataKey="transactions" name="Transaksi" stroke="#F59E0B" strokeWidth={3} dot={{r: 4}} /></ComposedChart></ResponsiveContainer></div>
+                    </div>
+                    <div className="flex flex-col gap-6 h-full">
+                        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col flex-1"><h3 className="text-lg font-semibold mb-4 text-gray-800 border-b pb-2 flex items-center"><Award className="w-5 h-5 mr-2 text-pink-600" />Top 5 Varian Terlaris</h3><div className="space-y-4 pt-2 overflow-y-auto pr-2 custom-scrollbar flex-1">{topProducts.length === 0 ? (<p className="text-gray-500 italic text-center py-4 text-xs">Data produk tidak tersedia.</p>) : (topProducts.slice(0, 5).map((product, index) => (<div key={index} className="flex flex-col"><div className="flex justify-between items-center mb-1"><span className={`text-xs font-bold truncate max-w-[150px] ${index === 0 ? 'text-pink-600' : 'text-gray-700'}`} title={product.name}>#{index + 1}: {product.name}</span><span className="text-xs font-extrabold text-indigo-600">{product.totalQuantity.toLocaleString()} Unit</span></div><div className="w-full bg-gray-100 rounded-full h-1.5"><div className={`h-1.5 rounded-full ${index === 0 ? 'bg-pink-500' : index === 1 ? 'bg-pink-400' : 'bg-pink-300'}`} style={{ width: `${(product.totalQuantity / topProducts[0].totalQuantity) * 100}%` }}></div></div></div>)))}</div></div>
+                        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col flex-1"><h3 className="text-lg font-semibold mb-4 text-gray-800 border-b pb-2 flex items-center"><UserPlus className="w-5 h-5 mr-2 text-yellow-600" />Top 5 Big Spenders</h3><div className="space-y-3 pt-2 overflow-y-auto pr-2 custom-scrollbar flex-1">{topSpenders.length === 0 ? (<p className="text-gray-500 italic text-center py-4 text-xs">Belum ada transaksi.</p>) : (topSpenders.map((cust, index) => (<div key={index} className="flex justify-between items-center border-b border-gray-50 last:border-0 pb-2 last:pb-0"><div className="flex items-center gap-3 overflow-hidden"><div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 ${index === 0 ? 'bg-yellow-500 shadow-md' : 'bg-gray-200 text-gray-600'}`}>{index + 1}</div><div className="min-w-0"><p className="text-xs font-bold text-gray-800 truncate max-w-[100px]" title={cust.name}>{cust.name}</p><p className="text-[9px] text-gray-500 truncate max-w-[100px]">{cust.city}</p></div></div><div className="text-right flex-shrink-0"><p className="text-xs font-bold text-green-600">{formatRupiah(cust.revenue)}</p><p className="text-[9px] text-gray-400">{cust.count} Order</p></div></div>)))}</div></div>
+                    </div>
+                </div>
+
+                {/* --- KESIMPULAN ANALISIS DATA --- */}
+                <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 p-6 rounded-xl shadow-md border border-indigo-100">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4"><Activity className="w-5 h-5 mr-2 text-indigo-600" /> Kesimpulan Analisis Data</h3>
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 ${isDigitalMode ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4 mb-4`}>
+                        <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center">
+                            <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Produk Paling Laris</p>
+                            <p className="text-sm font-bold text-gray-800 line-clamp-2 leading-tight" title={summaryInsights.productName}>{summaryInsights.productName}</p>
+                            <p className="text-xs text-indigo-600 font-semibold mt-1">{summaryInsights.productQty.toLocaleString()} Unit Terjual</p>
+                        </div>
+                        {!isDigitalMode && (
+                            <>
+                                <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center"><p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Kota Top Order</p><p className="text-sm font-bold text-gray-800 line-clamp-1">{summaryInsights.cityName}</p><p className="text-xs text-teal-600 font-semibold mt-1">{summaryInsights.cityCount.toLocaleString()} Order</p></div>
+                                <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center"><p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Provinsi Dominan</p><p className="text-sm font-bold text-gray-800 line-clamp-1">{summaryInsights.provinceName}</p><p className="text-xs text-blue-600 font-semibold mt-1">{summaryInsights.provinceCount.toLocaleString()} Order</p></div>
+                            </>
+                        )}
+                        <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center"><p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Sumber Trafik Utama</p><p className="text-sm font-bold text-gray-800 line-clamp-1">{summaryInsights.sourceName}</p><p className="text-xs text-orange-600 font-semibold mt-1">{summaryInsights.sourceCount.toLocaleString()} Konversi</p></div>
+                        <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center"><p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Jam Belanja Tersibuk</p><p className="text-sm font-bold text-gray-800 line-clamp-1 flex items-center"><Clock className="w-3 h-3 mr-1 text-purple-500"/> {summaryInsights.peakHour}</p><p className="text-xs text-purple-600 font-semibold mt-1">{summaryInsights.peakHourCount.toLocaleString()} Aktivitas</p></div>
+                        <div className="bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center"><p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Tanggal Omzet Tertinggi</p><p className="text-sm font-bold text-gray-800 line-clamp-1 flex items-center"><Calendar className="w-3 h-3 mr-1 text-green-500"/> Tgl {summaryInsights.bestDay}</p><p className="text-xs text-green-600 font-semibold mt-1">{summaryInsights.bestDayRevenue}</p></div>
+                        <div className={`bg-white p-4 rounded-lg border border-indigo-50 shadow-sm flex flex-col justify-center ${isDigitalMode ? '' : 'lg:col-span-2'}`}><p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Total Net Revenue (Periode Ini)</p><p className="text-xl font-bold text-green-700">{summaryInsights.revenue}</p><p className="text-xs text-gray-500 font-medium mt-1">dari total {summaryInsights.trx} Transaksi Valid</p></div>
+                    </div>
+                    <div className="bg-white/60 p-4 rounded-lg border border-indigo-100 text-sm text-gray-700 leading-relaxed shadow-inner">
+                        <p><span className="font-bold text-indigo-700">💡 Insight Singkat:</span> Performa penjualan periode ini didominasi oleh produk <strong>{summaryInsights.productName}</strong>. {!isDigitalMode && ( <> Secara geografis, kota dengan pesanan terbanyak adalah <strong>{summaryInsights.cityName}</strong>, sedangkan provinsi dengan kontribusi terbesar adalah <strong>{summaryInsights.provinceName}</strong>.</> )} Mayoritas trafik datang melalui jalur <strong>{summaryInsights.sourceName}</strong>. Secara tren waktu, tanggal <strong>{summaryInsights.bestDay}</strong> mencatatkan omzet tertinggi.</p>
+                    </div>
+                </div>
+
+                {/* --- SEBARAN LOKASI --- */}
+                {!isDigitalMode && (
+                    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                        <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2"><MapPin className="w-5 h-5 mr-2 text-red-600" /> Sebaran Lokasi Pengiriman Terbanyak (Top 10)</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {['Provinsi', 'Kota/Kab', 'Kecamatan'].map((title, i) => {
+                                const data = i === 0 ? topLocationLists.provinces : i === 1 ? topLocationLists.cities : topLocationLists.subdistricts;
+                                return (
+                                    <div key={title} className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col h-96">
+                                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center flex-shrink-0 border-b pb-2 border-gray-200">{title}</h4>
+                                        <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                                            {data.length === 0 ? <p className="text-xs text-gray-400 italic text-center mt-10">Data tidak cukup</p> : 
+                                            data.map((loc, idx) => (
+                                                <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-white hover:shadow-sm rounded transition-all">
+                                                    <div className="flex items-center gap-3 min-w-0"><span className={`text-[10px] font-bold w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0 ${idx < 3 ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'}`}>#{idx+1}</span><div className="flex flex-col min-w-0"><span className="font-bold text-gray-700 truncate max-w-[120px]" title={loc.name}>{loc.name}</span><span className="text-[10px] font-bold text-green-600">{formatRupiah(loc.revenue)}</span></div></div>
+                                                    <span className="font-bold text-gray-500 bg-gray-200 px-2 py-0.5 rounded text-[10px] flex-shrink-0">{loc.value} Trx</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* --- CHART LAINNYA --- */}
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                    <h3 className="text-xl font-semibold mb-6 text-gray-800 border-b pb-2 flex items-center"><Clock className="w-5 h-5 mr-2 text-purple-600" /> Analisis Jam Belanja Tersibuk</h3>
+                    <div className="h-80 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={hourlyActivityData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}><defs><linearGradient id="colorHour" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/><stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" /><XAxis dataKey="hour" tick={{ fontSize: 12 }} interval={2} /><YAxis tick={{ fontSize: 12 }} /><Tooltip formatter={(value) => [`${value} Transaksi`, 'Aktivitas']} /><Area type="monotone" dataKey="count" stroke="#7c3aed" strokeWidth={3} fillOpacity={1} fill="url(#colorHour)" /></AreaChart></ResponsiveContainer></div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Chart Metode Bayar (WITH REVENUE TOOLTIP) */}
+                    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><CreditCard className="w-5 h-5 mr-2 text-blue-600" /> Distribusi Metode Pembayaran</h3>
+                        <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={paymentMethodChartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">{paymentMethodChartData.map((entry, index) => (<Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />))}</Pie><Tooltip formatter={(val, name, props) => [`${val} Order`, `${name} (${formatRupiah(props.payload.revenue)})`]} /><Legend layout="vertical" verticalAlign="bottom" align="center" wrapperStyle={{fontSize: '11px'}} /></PieChart></ResponsiveContainer></div>
+                    </div>
+                    {/* Chart Tipe Pelanggan (WITH REVENUE TOOLTIP - FIXED COLORS) */}
+                    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><UserCheck className="w-5 h-5 mr-2 text-green-600" /> Tipe Pelanggan (New vs Repeat)</h3>
+                        <div className="h-64 w-full">
                             <ResponsiveContainer width="100%" height="100%">
-                                <ComposedChart data={trendData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                                    <CartesianGrid stroke="#f5f5f5" />
-                                    <XAxis dataKey="day" label={{ value: 'Tanggal', position: 'insideBottomRight', offset: -5 }} tick={{fontSize: 11}} />
-                                    <YAxis yAxisId="left" orientation="left" stroke="#2563EB" tickFormatter={(val) => (val/1000).toFixed(0)+'k'} fontSize={11} />
-                                    <YAxis yAxisId="right" orientation="right" stroke="#F59E0B" fontSize={11} />
-                                    <Tooltip 
-                                        contentStyle={{borderRadius:'8px', border:'none', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.1)'}}
-                                        formatter={(value, name) => [name === 'Revenue' ? formatRupiah(value) : value, name]} 
-                                    />
-                                    <Legend wrapperStyle={{paddingTop: '10px'}}/>
-                                    <Bar yAxisId="left" dataKey="revenue" name="Revenue" barSize={20} fill="#2563EB" radius={[4, 4, 0, 0]} />
-                                    <Line yAxisId="right" type="monotone" dataKey="transactions" name="Transaksi" stroke="#F59E0B" strokeWidth={3} dot={{r: 4}} />
-                                </ComposedChart>
+                                <PieChart>
+                                    <Pie data={customerTypeChartData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}>
+                                        {customerTypeChartData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.name === 'New' ? '#3B82F6' : '#10B981'} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip formatter={(val, name, props) => [`${val} Orang`, `${name} (${formatRupiah(props.payload.revenue)})`]} />
+                                    <Legend verticalAlign="bottom" height={36}/>
+                                </PieChart>
                             </ResponsiveContainer>
                         </div>
+                        <p className="text-center text-[10px] text-gray-400 mt-2">Perbandingan Pelanggan Baru vs Pelanggan Lama</p>
                     </div>
+                </div>
 
-                    {/* TOP LISTS (KANAN - SEMPIT & STACKED) */}
-                    <div className="flex flex-col gap-6 h-full">
-                        {/* Top 5 Varian */}
-                        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col flex-1">
-                            <h3 className="text-lg font-semibold mb-4 text-gray-800 border-b pb-2 flex items-center"><Award className="w-5 h-5 mr-2 text-pink-600" />Top 5 Varian Terlaris</h3>
-                            <div className="space-y-4 pt-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                                {topProducts.length === 0 ? (<p className="text-gray-500 italic text-center py-4 text-xs">Data produk tidak tersedia.</p>) : (
-                                    topProducts.slice(0, 5).map((product, index) => (
-                                        <div key={index} className="flex flex-col">
-                                            <div className="flex justify-between items-center mb-1">
-                                                <span className={`text-xs font-bold truncate max-w-[150px] ${index === 0 ? 'text-pink-600' : 'text-gray-700'}`} title={product.name}>#{index + 1}: {product.name}</span>
-                                                <span className="text-xs font-extrabold text-indigo-600">{product.totalQuantity.toLocaleString()} Unit</span>
-                                            </div>
-                                            <div className="w-full bg-gray-100 rounded-full h-1.5">
-                                                <div className={`h-1.5 rounded-full ${index === 0 ? 'bg-pink-500' : index === 1 ? 'bg-pink-400' : 'bg-pink-300'}`} style={{ width: `${(product.totalQuantity / topProducts[0].totalQuantity) * 100}%` }}></div>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
-                        
-                        {/* Top 5 Big Spenders */}
-                        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col flex-1">
-                            <h3 className="text-lg font-semibold mb-4 text-gray-800 border-b pb-2 flex items-center"><UserPlus className="w-5 h-5 mr-2 text-yellow-600" />Top 5 Big Spenders</h3>
-                            <div className="space-y-3 pt-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                                {topSpenders.length === 0 ? (
-                                    <p className="text-gray-500 italic text-center py-4 text-xs">Belum ada transaksi.</p>
-                                ) : (
-                                    topSpenders.map((cust, index) => (
-                                        <div key={index} className="flex justify-between items-center border-b border-gray-50 last:border-0 pb-2 last:pb-0">
-                                            <div className="flex items-center gap-3 overflow-hidden">
-                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 ${index === 0 ? 'bg-yellow-500 shadow-md' : 'bg-gray-200 text-gray-600'}`}>
-                                                    {index + 1}
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <p className="text-xs font-bold text-gray-800 truncate max-w-[100px]" title={cust.name}>{cust.name}</p>
-                                                    <p className="text-[9px] text-gray-500 truncate max-w-[100px]">{cust.city}</p>
-                                                </div>
-                                            </div>
-                                            <div className="text-right flex-shrink-0">
-                                                <p className="text-xs font-bold text-green-600">{formatRupiah(cust.revenue)}</p>
-                                                <p className="text-[9px] text-gray-400">{cust.count} Order</p>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Chart Financial Entity (WITH REVENUE TOOLTIP) */}
+                    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Landmark className="w-5 h-5 mr-2 text-teal-600" /> Top Financial Entity</h3>
+                        <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={financialEntityChartData.slice(0, 8)} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}><CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f0f0f0" /><XAxis type="number" hide /><YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} /><Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} formatter={(val, name, props) => [`${val} Order`, `${name} (${formatRupiah(props.payload.revenue)})`]} cursor={{fill: '#f0fdfa'}} /><Bar dataKey="value" name="Jumlah Order" fill="#0D9488" radius={[0, 4, 4, 0]} barSize={20}><LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" /></Bar></BarChart></ResponsiveContainer></div>
+                    </div>
+                    {/* Chart UTM Source (WITH REVENUE TOOLTIP) */}
+                    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Globe className="w-5 h-5 mr-2 text-orange-600" /> Top Sumber Trafik</h3>
+                        <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={utmSourceChartData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}><CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f0f0f0" /><XAxis type="number" hide /><YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} /><Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} formatter={(val, name, props) => [`${val} Order`, `${name} (${formatRupiah(props.payload.revenue)})`]} cursor={{fill: '#fff7ed'}} /><Bar dataKey="value" name="Jumlah Order" fill="#F97316" radius={[0, 4, 4, 0]} barSize={20}><LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" /></Bar></BarChart></ResponsiveContainer></div>
+                    </div>
+                </div>
+
+                {/* --- TABEL TRANSAKSI HARIAN --- */}
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                    <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                        <h3 className="text-xl font-semibold text-gray-800 flex items-center"><List className="w-5 h-5 mr-2 text-indigo-600" /> Detail Transaksi Harian <span className="ml-3 text-xs font-bold bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full border border-indigo-200">Total: {tableData.length} Order</span></h3>
+                        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                            <div className="relative"><input type="text" placeholder="Cari Order ID / Nama..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-64 text-sm" /><Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" /></div>
+                            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer"><option value="All">Semua Status</option><option value="completed">Completed</option><option value="confirmed">Confirmed</option><option value="pending">Pending</option><option value="canceled">Canceled</option><option value="rts">RTS</option></select>
+                            <button onClick={handleExportDailyReport} disabled={tableData.length === 0} className={`flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-colors ${tableData.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}><Download className="w-4 h-4 mr-2" /> Export CSV</button>
                         </div>
                     </div>
-                </div>
-
-{/* --- SEBARAN LOKASI (Hanya Muncul Jika Produk Fisik) --- */}
-    {!isDigitalMode && (
-        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-            <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2">
-                <MapPin className="w-5 h-5 mr-2 text-red-600" /> Sebaran Lokasi Pengiriman Terbanyak (Top 10)
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* List Provinsi */}
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col h-80">
-                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center flex-shrink-0 border-b pb-2 border-gray-200"><Globe className="w-3 h-3 mr-1 text-blue-500" /> Provinsi</h4>
-                    <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                        {topLocationLists.provinces.length === 0 ? <p className="text-xs text-gray-400 italic text-center mt-10">Data tidak cukup</p> : 
-                        topLocationLists.provinces.map((loc, idx) => (
-                            <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-white hover:shadow-sm rounded transition-all">
-                                <div className="flex items-center gap-2 min-w-0"><span className={`text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0 ${idx < 3 ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'}`}>#{idx+1}</span><span className="font-medium text-gray-700 truncate" title={loc.name}>{loc.name}</span></div><span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full text-xs flex-shrink-0">{loc.value}</span>
-                            </div>
-                        ))}
+                    
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-12">No.</th>
+                                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Order ID / Tgl</th>
+                                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Pelanggan</th>
+                                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Produk</th>
+                                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {currentTableData.length > 0 ? currentTableData.map((item, index) => (
+                                    <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-500 align-top">{(currentPage - 1) * itemsPerPage + index + 1}.</td>
+                                        <td className="px-6 py-4 whitespace-nowrap align-top"><div className="text-sm font-bold text-indigo-600">{item[COL_ORDER_ID]}</div><div className="text-xs text-gray-500 mt-1">{item[COL_CONFIRMED_TIME] || item['draft_time']}</div></td>
+                                        <td className="px-6 py-4 align-top"><div className="text-sm font-medium text-gray-900">{item[COL_NAME]}</div><div className="text-xs text-gray-500 mt-0.5">{isDigitalMode ? (item['email'] || '-') : `${item[COL_CITY] || ''}, ${item[COL_PROVINCE] || ''}`}</div>{customerSegmentMap.has(item[COL_NAME]) && (<span className={`inline-flex mt-1 items-center px-2 py-0.5 rounded text-[10px] font-bold text-white ${customerSegmentMap.get(item[COL_NAME]).color}`}>{customerSegmentMap.get(item[COL_NAME]).name}</span>)}</td>
+                                        <td className="px-6 py-4 align-top"><div className="text-xs text-gray-700 max-w-xs line-clamp-2" title={getProductSummary(item)}>{getProductSummary(item)}</div></td>
+                                        <td className="px-6 py-4 whitespace-nowrap align-top"><span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full`} style={{ backgroundColor: (STATUS_COLORS[(item['order_status']||'').toLowerCase()] || '#94a3b8') + '20', color: STATUS_COLORS[(item['order_status']||'').toLowerCase()] || '#1e293b' }}>{(item['order_status'] || 'Unknown').toUpperCase()}</span></td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-gray-900 align-top">{formatRupiah(safeFloat(item[COL_NET_REVENUE]))}</td>
+                                    </tr>
+                                )) : (<tr><td colSpan="6" className="px-6 py-10 text-center text-gray-500 italic">Tidak ada data ditemukan untuk periode/filter ini.</td></tr>)}
+                            </tbody>
+                        </table>
                     </div>
-                </div>
-                {/* List Kota */}
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col h-80">
-                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center flex-shrink-0 border-b pb-2 border-gray-200"><MapPin className="w-3 h-3 mr-1 text-red-500" /> Kota / Kabupaten</h4>
-                    <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                        {topLocationLists.cities.length === 0 ? <p className="text-xs text-gray-400 italic text-center mt-10">Data tidak cukup</p> : 
-                        topLocationLists.cities.map((loc, idx) => (
-                            <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-white hover:shadow-sm rounded transition-all">
-                                <div className="flex items-center gap-2 min-w-0"><span className={`text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0 ${idx < 3 ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-500'}`}>#{idx+1}</span><span className="font-medium text-gray-700 truncate" title={loc.name}>{loc.name}</span></div><span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full text-xs flex-shrink-0">{loc.value}</span>
+
+                    <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-4">
+                        <div className="flex flex-1 justify-between sm:hidden">
+                            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Previous</button>
+                            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Next</button>
+                        </div>
+                        <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                            <div><p className="text-sm text-gray-700">Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, tableData.length)}</span> of <span className="font-medium">{tableData.length}</span> results</p></div>
+                            <div>
+                                <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                                    <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"><ChevronLeft className="h-5 w-5" /></button>
+                                    <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">Prev</button>
+                                    <span className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300 focus:outline-offset-0">Page {currentPage} of {totalPages}</span>
+                                    <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">Next</button>
+                                    <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"><ChevronRight className="h-5 w-5" /></button>
+                               </nav>
                             </div>
-                        ))}
+                        </div>
                     </div>
-                </div>
-                {/* List Kecamatan */}
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col h-80">
-                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center flex-shrink-0 border-b pb-2 border-gray-200"><MapPin className="w-3 h-3 mr-1 text-green-500" /> Kecamatan</h4>
-                    <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                        {topLocationLists.subdistricts.length === 0 ? <p className="text-xs text-gray-400 italic text-center mt-10">Data tidak cukup</p> : 
-                        topLocationLists.subdistricts.map((loc, idx) => (
-                            <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-white hover:shadow-sm rounded transition-all">
-                                <div className="flex items-center gap-2 min-w-0"><span className={`text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0 ${idx < 3 ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>#{idx+1}</span><span className="font-medium text-gray-700 truncate" title={loc.name}>{loc.name}</span></div><span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full text-xs flex-shrink-0">{loc.value}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </div>
-    )}
-{/* --- CHART LAINNYA --- */}
-    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-        <h3 className="text-xl font-semibold mb-6 text-gray-800 border-b pb-2 flex items-center"><Clock className="w-5 h-5 mr-2 text-purple-600" /> Analisis Jam Belanja Tersibuk (Waktu Order Dibuat)</h3>
-        <div className="h-80 w-full"><ResponsiveContainer width="100%" height="100%"><AreaChart data={hourlyActivityData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}><defs><linearGradient id="colorHour" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/><stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" /><XAxis dataKey="hour" tick={{ fontSize: 12 }} interval={2} /><YAxis tick={{ fontSize: 12 }} /><Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} itemStyle={{ color: '#6d28d9', fontWeight: 'bold' }} formatter={(value) => [`${value} Transaksi`, 'Aktivitas']} /><Area type="monotone" dataKey="count" stroke="#7c3aed" strokeWidth={3} fillOpacity={1} fill="url(#colorHour)" name="Jumlah Order" activeDot={{ r: 6, strokeWidth: 0 }} /></AreaChart></ResponsiveContainer></div>
-        <p className="text-center text-xs text-gray-500 mt-4 italic">Grafik ini menunjukkan distribusi waktu saat pelanggan membuat pesanan (Checkout/Draft) dalam rentang waktu terpilih.</p>
-    </div>
-
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><CreditCard className="w-5 h-5 mr-2 text-blue-600" /> Distribusi Metode Pembayaran</h3>
-            <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={paymentMethodChartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">{paymentMethodChartData.map((entry, index) => (<Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />))}</Pie><Tooltip formatter={(val) => `${val} Order`} /><Legend layout="vertical" verticalAlign="bottom" align="center" wrapperStyle={{fontSize: '11px'}} /></PieChart></ResponsiveContainer></div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><UserCheck className="w-5 h-5 mr-2 text-green-600" /> Tipe Pelanggan (New vs Repeat)</h3>
-            <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={customerTypeChartData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}>{customerTypeChartData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.name.includes('NEW') || entry.name.includes('BARU') ? '#3B82F6' : '#10B981'} />))}</Pie><Tooltip formatter={(val) => `${val} Orang`} /><Legend verticalAlign="bottom" height={36}/></PieChart></ResponsiveContainer></div>
-            <p className="text-center text-[10px] text-gray-400 mt-2">Perbandingan Pelanggan Baru vs Pelanggan Lama</p>
-        </div>
-    </div>
-
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Landmark className="w-5 h-5 mr-2 text-teal-600" /> Top Financial Entity (Bank/Layanan)</h3>
-            <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={financialEntityChartData.slice(0, 8)} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}><CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f0f0f0" /><XAxis type="number" hide /><YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} /><Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} formatter={(val) => [`${val} Order`, 'Jumlah']} cursor={{fill: '#f0fdfa'}} /><Bar dataKey="value" name="Jumlah Order" fill="#0D9488" radius={[0, 4, 4, 0]} barSize={20}><LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" /></Bar></BarChart></ResponsiveContainer></div>
-            <p className="text-center text-[10px] text-gray-400 mt-2 italic">Top 8 Bank/Layanan Pembayaran</p>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Globe className="w-5 h-5 mr-2 text-orange-600" /> Top Sumber Trafik (UTM Source)</h3>
-            <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={utmSourceChartData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}><CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f0f0f0" /><XAxis type="number" hide /><YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} /><Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} formatter={(val) => [`${val} Order`, 'Jumlah']} cursor={{fill: '#fff7ed'}} /><Bar dataKey="value" name="Jumlah Order" fill="#F97316" radius={[0, 4, 4, 0]} barSize={20}><LabelList dataKey="value" position="right" fontSize={10} fill="#64748b" /></Bar></BarChart></ResponsiveContainer></div>
-            <p className="text-center text-[10px] text-gray-400 mt-2 italic">Top 5 Sumber Trafik Terbanyak</p>
-        </div>
-    </div>
-
-    {/* --- TABEL TRANSAKSI HARIAN --- */}
-    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-            <h3 className="text-xl font-semibold text-gray-800 flex items-center"><List className="w-5 h-5 mr-2 text-indigo-600" /> Detail Transaksi Harian <span className="ml-3 text-xs font-bold bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full border border-indigo-200">Total: {tableData.length} Order</span></h3>
-            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                <div className="relative"><input type="text" placeholder="Cari Order ID / Nama..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-64 text-sm" /><Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" /></div>
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer"><option value="All">Semua Status</option><option value="completed">Completed</option><option value="confirmed">Confirmed</option><option value="pending">Pending</option><option value="canceled">Canceled</option><option value="rts">RTS</option></select>
-                <button onClick={handleExportDailyReport} disabled={tableData.length === 0} className={`flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-colors ${tableData.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}><Download className="w-4 h-4 mr-2" /> Export CSV</button>
-            </div>
-        </div>
-        
-        <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                    <tr>
-                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-12">No.</th>
-                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Order ID / Tgl</th>
-                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Pelanggan</th>
-                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Produk</th>
-                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Total</th>
-                    </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                    {currentTableData.length > 0 ? currentTableData.map((item, index) => (
-                        <tr key={index} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-500 align-top">{(currentPage - 1) * itemsPerPage + index + 1}.</td>
-                            <td className="px-6 py-4 whitespace-nowrap align-top">
-                                <div className="text-sm font-bold text-indigo-600">{item[COL_ORDER_ID]}</div>
-                                <div className="text-xs text-gray-500 mt-1">{item[COL_CONFIRMED_TIME] || item['draft_time']}</div>
-                            </td>
-                            <td className="px-6 py-4 align-top">
-                                <div className="text-sm font-medium text-gray-900">{item[COL_NAME]}</div>
-                                <div className="text-xs text-gray-500 mt-0.5">
-                                    {isDigitalMode ? (item['email'] || '-') : `${item[COL_CITY] || ''}, ${item[COL_PROVINCE] || ''}`}
-                                </div>
-                                {customerSegmentMap.has(item[COL_NAME]) && (<span className={`inline-flex mt-1 items-center px-2 py-0.5 rounded text-[10px] font-bold text-white ${customerSegmentMap.get(item[COL_NAME]).color}`}>{customerSegmentMap.get(item[COL_NAME]).name}</span>)}
-                            </td>
-                            <td className="px-6 py-4 align-top"><div className="text-xs text-gray-700 max-w-xs line-clamp-2" title={getProductSummary(item)}>{getProductSummary(item)}</div></td>
-                            <td className="px-6 py-4 whitespace-nowrap align-top"><span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full`} style={{ backgroundColor: (STATUS_COLORS[(item['order_status']||'').toLowerCase()] || '#94a3b8') + '20', color: STATUS_COLORS[(item['order_status']||'').toLowerCase()] || '#1e293b' }}>{(item['order_status'] || 'Unknown').toUpperCase()}</span></td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-gray-900 align-top">{formatRupiah(item[COL_NET_REVENUE] || 0)}</td>
-                        </tr>
-                    )) : (<tr><td colSpan="6" className="px-6 py-10 text-center text-gray-500 italic">Tidak ada data ditemukan untuk periode/filter ini.</td></tr>)}
-                </tbody>
-            </table>
-        </div>
-
-        <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-4">
-            <div className="flex flex-1 justify-between sm:hidden">
-                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Previous</button>
-                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Next</button>
-            </div>
-            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                <div><p className="text-sm text-gray-700">Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, tableData.length)}</span> of <span className="font-medium">{tableData.length}</span> results</p></div>
-                <div><nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination"><button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"><ChevronLeft className="h-5 w-5" /></button><button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">Prev</button><span className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300 focus:outline-offset-0">Page {currentPage} of {totalPages}</span><button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">Next</button><button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"><ChevronRight className="h-5 w-5" /></button></nav></div>
-            </div>
-        </div>
-    </div>
-</div>
-    );
-};
+                </div> 
+            </div> 
+       </div> 
+    );
+}; // <--- PASTIKAN TANDA KURUNG KURAWAL DAN TITIK KOMA INI ADA (Ini penutup DailyReportView)
 
 const RecoveryAnalysisView = ({ rawData, isDigitalMode }) => {
-    // State Filter
+    // --- STATE FILTER ---
     const [filterIssue, setFilterIssue] = useState('All');
     const [filterValue, setFilterValue] = useState('All');
     const [searchTerm, setSearchTerm] = useState('');
-    const [startDate, setStartDate] = useState(''); // State Tanggal Mulai
-    const [endDate, setEndDate] = useState('');     // State Tanggal Akhir
+    const [startDate, setStartDate] = useState(''); 
+    const [endDate, setEndDate] = useState('');
     const [clickedChats, setClickedChats] = useState(new Set());
     
+    // --- 7 FILTER BARU ---
+    const [filterProv, setFilterProv] = useState('All');
+    const [filterCity, setFilterCity] = useState('All');
+    const [filterSub, setFilterSub] = useState('All');
+    const [filterSrc, setFilterSrc] = useState('All');
+    const [filterPay, setFilterPay] = useState('All');
+    const [filterBank, setFilterBank] = useState('All');
+    const [filterProd, setFilterProd] = useState('All');
+
     // State Template Chat
     const [showTemplateModal, setShowTemplateModal] = useState(false);
     const [templates, setTemplates] = useState({
@@ -2065,38 +2460,55 @@ const RecoveryAnalysisView = ({ rawData, isDigitalMode }) => {
         Default: "Halo Kak {name}, ada yang bisa kami bantu untuk pesanannya?"
     });
 
+    // Helper: Membersihkan angka
+    const safeFloat = (val) => {
+        if (typeof val === 'number') return val;
+        if (!val) return 0;
+        const str = val.toString();
+        const cleanStr = str.replace(/[^0-9,-]/g, '').replace(',', '.'); 
+        const num = parseFloat(cleanStr);
+        return isNaN(num) ? 0 : num;
+    };
+
+    // Helper: Parser Tanggal
+    const parseDateSafe = (dateStr) => {
+        if (!dateStr) return null;
+        const s = dateStr.toString().trim();
+        let d = new Date(s.replace(' ', 'T'));
+        if (!isNaN(d.getTime())) return d;
+        const parts = s.split(/[\/\-\s]/);
+        if (parts.length >= 3) {
+            if (parts[0].length === 4) return new Date(parts[0], parseInt(parts[1])-1, parts[2]);
+            const year = parts[2].length === 4 ? parts[2] : parts[2].length === 2 ? '20' + parts[2] : parts[2];
+            return new Date(year, parseInt(parts[1])-1, parts[0]);
+        }
+        return null;
+    };
+
+    // Template Editor
     const TemplateEditor = () => {
         if (!showTemplateModal) return null;
         return (
             <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex justify-center items-center z-50 p-4">
-                <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6 transform transition-all max-h-[90vh] overflow-y-auto">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6 overflow-y-auto max-h-[90vh]">
                     <div className="flex justify-between items-center mb-6 border-b pb-4">
-                        <h3 className="text-xl font-bold text-gray-800 flex items-center">
-                            <MessageSquare className="w-6 h-6 mr-2 text-indigo-600" /> Kustomisasi Script Pesan WA
-                        </h3>
-                        <button onClick={() => setShowTemplateModal(false)} className="text-gray-400 hover:text-gray-600"><XCircle className="w-6 h-6" /></button>
+                        <h3 className="text-xl font-bold text-gray-800">Kustomisasi Script WA</h3>
+                        <button onClick={() => setShowTemplateModal(false)}><XCircle className="w-6 h-6 text-gray-400"/></button>
                     </div>
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                         {Object.keys(templates).map((key) => (
-                            <div key={key}>
-                                <label className="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Script: {key}</label>
-                                <textarea value={templates[key]} onChange={(e) => setTemplates({...templates, [key]: e.target.value})} className="w-full p-3 border border-gray-300 rounded-lg text-sm" rows={3} />
-                            </div>
+                            <div key={key}><label className="block text-sm font-bold text-gray-700 mb-1">{key}</label><textarea value={templates[key]} onChange={(e) => setTemplates({...templates, [key]: e.target.value})} className="w-full p-2 border rounded text-sm h-20" /></div>
                         ))}
                     </div>
-                    <div className="mt-8 flex justify-end gap-3 pt-4 border-t">
-                        <button onClick={() => setShowTemplateModal(false)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors">Simpan & Tutup</button>
-                    </div>
+                    <div className="mt-4 flex justify-end"><button onClick={() => setShowTemplateModal(false)} className="px-4 py-2 bg-indigo-600 text-white rounded font-bold">Simpan</button></div>
                 </div>
             </div>
         );
     };
 
-    // --- LOGIKA ANALISIS UTAMA (DENGAN FILTER TANGGAL) ---
-    const { abandonedOrders, rtsOrders, canceledOrders, stuckPendingOrders, totalLostPotential, highRiskLocations, topProblematicProducts, topProblematicSources, topProblematicPayments, topProblematicFinancialEntities, recoveryInsights } = useMemo(() => {
+    // --- LOGIKA UTAMA (USE MEMO) ---
+    const { allIssues, filterOptions, recoveryInsights, totalLostPotential, highRiskLocations, topProblematicProducts, topProblematicSources, topProblematicPayments, topProblematicFinancialEntities, abandonedOrders, rtsOrders, canceledOrders, stuckPendingOrders } = useMemo(() => {
         const today = new Date();
-        
-        // Setup Filter Tanggal
         const start = startDate ? new Date(startDate) : new Date('1970-01-01'); start.setHours(0,0,0,0);
         const end = endDate ? new Date(endDate) : new Date('2099-12-31'); end.setHours(23,59,59,999);
 
@@ -2106,129 +2518,133 @@ const RecoveryAnalysisView = ({ rawData, isDigitalMode }) => {
         const provStats = {}, cityStats = {}, subStats = {};
         const prodStats = {}, sourceStats = {}, paymentStats = {}, financialStats = {};
 
-        const updateLocStats = (storage, key, revenue) => {
-            if (!storage[key]) storage[key] = { name: key, count: 0, totalRevenue: 0 };
-            storage[key].count += 1;
-            storage[key].totalRevenue += revenue;
+        const updateStats = (storage, key, revenue) => {
+            if (!storage[key]) storage[key] = { name: key, total: 0, count: 0, totalRevenue: 0 };
+            storage[key].total += 1; storage[key].count += 1; storage[key].totalRevenue += revenue;
         };
 
-        const updateDetailStats = (storage, key, revenue) => {
-             if (!storage[key]) storage[key] = { name: key, total: 0, totalRevenue: 0 };
-             storage[key].total += 1;
-             storage[key].totalRevenue += revenue;
-        };
+        const provs = new Set(), cities = new Set(), subs = new Set();
+        const srcs = new Set(), pays = new Set(), banks = new Set(), prods = new Set();
 
         rawData.forEach(order => {
             const status = (order['order_status'] || '').toLowerCase();
             const dateStr = order['draft_time'] || order['pending_time'];
             if (!dateStr) return;
-            
-            const orderDate = new Date(dateStr.replace(' ', 'T'));
-            if (isNaN(orderDate.getTime())) return;
-
-            // --- FILTER TANGGAL DISINI ---
+            const orderDate = parseDateSafe(dateStr);
+            if (!orderDate || isNaN(orderDate.getTime())) return;
             if (orderDate < start || orderDate > end) return; 
-            // -----------------------------
             
             const diffDays = Math.ceil(Math.abs(today - orderDate) / (1000 * 60 * 60 * 24));
-            const revenue = parseFloat(order[COL_NET_REVENUE] || 0);
-            let isProblem = false;
+            const revenue = safeFloat(order[COL_NET_REVENUE]);
+            let isProblem = false, issueType = '';
 
-            if (status === 'pending' && diffDays >= 3 && diffDays <= 7) { stuck.push({ ...order, daysSince: diffDays, issueType: 'Stuck Pending' }); lostRevenue += revenue; isProblem = true; }
-            else if (status === 'pending' && diffDays > 7) { abandoned.push({ ...order, daysSince: diffDays, issueType: 'Pending (> 7 Hari)' }); lostRevenue += revenue; isProblem = true; }
-            else if (!isDigitalMode && status === 'rts') { rts.push({ ...order, daysSince: diffDays, issueType: 'RTS (Retur)' }); lostRevenue += revenue; isProblem = true; }
-            else if (status === 'canceled') { canceled.push({ ...order, daysSince: diffDays, issueType: 'Canceled' }); lostRevenue += revenue; isProblem = true; }
+            if (status === 'pending' && diffDays >= 3 && diffDays <= 7) { issueType = 'Stuck Pending'; stuck.push({ ...order, daysSince: diffDays, issueType }); isProblem = true; }
+            else if (status === 'pending' && diffDays > 7) { issueType = 'Pending (> 7 Hari)'; abandoned.push({ ...order, daysSince: diffDays, issueType }); isProblem = true; }
+            else if (!isDigitalMode && status === 'rts') { issueType = 'RTS (Retur)'; rts.push({ ...order, daysSince: diffDays, issueType }); isProblem = true; }
+            else if (status === 'canceled') { issueType = 'Canceled'; canceled.push({ ...order, daysSince: diffDays, issueType }); isProblem = true; }
 
             if (isProblem) {
-                // Lokasi (Hanya Fisik)
+                lostRevenue += revenue;
+                const p = (order[COL_PROVINCE] || 'Unknown').trim();
+                const c = (order[COL_CITY] || 'Unknown').trim();
+                const s_loc = (order[COL_SUBDISTRICT] || 'Unknown').trim();
+                
                 if (!isDigitalMode) {
-                    const p = (order[COL_PROVINCE] || 'Unknown').trim();
-                    const c = (order[COL_CITY] || 'Unknown').trim();
-                    const s = (order[COL_SUBDISTRICT] || 'Unknown').trim();
-                    
-                    if (p && p !== '-') updateLocStats(provStats, p, revenue);
-                    if (c && c !== '-') updateLocStats(cityStats, c, revenue);
-                    if (s && s !== '-') updateLocStats(subStats, s, revenue);
+                    if (p && p !== '-' && p !== 'Unknown') { provs.add(p); updateStats(provStats, p, revenue); }
+                    if (c && c !== '-' && c !== 'Unknown') { cities.add(c); updateStats(cityStats, c, revenue); }
+                    if (s_loc && s_loc !== '-' && s_loc !== 'Unknown') { subs.add(s_loc); updateStats(subStats, s_loc, revenue); }
                 }
-                
-                // Produk
-                Object.keys(order).forEach(k => { if (k.startsWith('variant:') && parseFloat(order[k]) > 0) {
-                    const n = k.replace('variant:', '').replace(/_/g, ' ').toUpperCase();
-                    updateDetailStats(prodStats, n, revenue);
-                }});
-                
-                // Sumber Trafik
-                let src = (order[COL_UTM_SOURCE] || 'Organic/Direct').trim();
-                if (!src || src === '-' || src === '') src = 'Organic/Direct';
-                updateDetailStats(sourceStats, src.charAt(0).toUpperCase() + src.slice(1), revenue);
 
-                // Metode Bayar
+                let src = (order[COL_UTM_SOURCE] || 'Organic/Direct').trim();
+                if (!src || src === '-') src = 'Organic/Direct';
+                src = src.charAt(0).toUpperCase() + src.slice(1);
+                srcs.add(src); updateStats(sourceStats, src, revenue);
+
                 let pay = (order[COL_PAYMENT_METHOD] || order['epayment_provider'] || 'Lainnya').trim();
                 if (!pay || pay === '-') pay = 'Lainnya';
-                updateDetailStats(paymentStats, pay.toUpperCase().replace('_', ' '), revenue);
+                pay = pay.toUpperCase().replace('_', ' ');
+                pays.add(pay); updateStats(paymentStats, pay, revenue);
 
-                // Bank
-                let fin = (order[COL_FINANCIAL_ENTITY] || '').trim();
-                if (fin && fin !== '-' && fin.toLowerCase() !== 'unknown') updateDetailStats(financialStats, fin.toUpperCase(), revenue);
+                const bank = (order[COL_FINANCIAL_ENTITY] || '').trim().toUpperCase();
+                if (bank && bank !== '-' && bank !== 'UNKNOWN') { banks.add(bank); updateStats(financialStats, bank, revenue); }
+
+                Object.keys(order).forEach(k => { 
+                    if (k.startsWith('variant:') && parseFloat(order[k]) > 0) {
+                        const n = k.replace('variant:', '').replace(/_/g, ' ').toUpperCase();
+                        prods.add(n); updateStats(prodStats, n, revenue);
+                    }
+                });
             }
         });
 
-        const getTopLoc = (s, lim=5) => Object.values(s).sort((a,b)=>b.count-a.count).slice(0, lim);
-        const getList = (s, lim=5) => Object.values(s).sort((a,b)=>b.total-a.total).slice(0, lim);
+        const combinedIssues = [...stuck, ...abandoned, ...rts, ...canceled].sort((a,b) => safeFloat(b[COL_NET_REVENUE]) - safeFloat(a[COL_NET_REVENUE]));
         
-        const issues = [
-            { name: 'Stuck Pending', count: stuck.length }, { name: 'Pending Lama', count: abandoned.length },
-            { name: 'RTS', count: rts.length }, { name: 'Canceled', count: canceled.length }
-        ].reduce((a,b) => a.count > b.count ? a : b);
-        
-        const safeTop = (list) => list.length > 0 ? list[0] : { name: '-', count: 0, total: 0 };
-        const topProvList = getTopLoc(provStats, 10);
-        const topCityList = getTopLoc(cityStats, 10);
-        const topSubList = getTopLoc(subStats, 10);
-        
-        const topProdList = getList(prodStats, 10);
-        const topSrcList = getList(sourceStats, 5);
-        const topPayList = getList(paymentStats, 5);
-        const topFinList = getList(financialStats, 5);
+        const getTop = (s, lim=5) => Object.values(s).sort((a,b)=>b.count-a.count).slice(0, lim);
+        const topProvList = getTop(provStats, 10); const topCityList = getTop(cityStats, 10); const topSubList = getTop(subStats, 10);
+        const topProdList = getTop(prodStats, 10); const topSrcList = getTop(sourceStats, 5); const topPayList = getTop(paymentStats, 5); const topFinList = getTop(financialStats, 5);
 
-        const recoveryInsights = {
-            issueName: issues.name, issueCount: issues.count,
-            provName: safeTop(topProvList).name, provCount: safeTop(topProvList).count,
-            cityName: safeTop(topCityList).name, cityCount: safeTop(topCityList).count,
-            subName: safeTop(topSubList).name, subCount: safeTop(topSubList).count,
-            prodName: safeTop(topProdList).name, prodCount: safeTop(topProdList).total,
-            sourceName: safeTop(topSrcList).name, sourceCount: safeTop(topSrcList).total,
-            payName: safeTop(topPayList).name, payCount: safeTop(topPayList).total,
-            finName: safeTop(topFinList).name, finCount: safeTop(topFinList).total
-        };
+        const safeName = (list) => list.length > 0 ? list[0].name : "-";
+        const safeCount = (list) => list.length > 0 ? list[0].count : 0;
+        const issuesStat = [{n:'Stuck', c:stuck.length}, {n:'Pending', c:abandoned.length}, {n:'RTS', c:rts.length}, {n:'Canceled', c:canceled.length}].reduce((a,b)=>a.c>b.c?a:b);
 
         return {
-            abandonedOrders: abandoned.sort((a,b)=>b[COL_NET_REVENUE]-a[COL_NET_REVENUE]),
-            rtsOrders: rts.sort((a,b)=>b[COL_NET_REVENUE]-a[COL_NET_REVENUE]),
-            canceledOrders: canceled.sort((a,b)=>b[COL_NET_REVENUE]-a[COL_NET_REVENUE]),
-            stuckPendingOrders: stuck.sort((a,b)=>b[COL_NET_REVENUE]-a[COL_NET_REVENUE]),
+            allIssues: combinedIssues,
+            filterOptions: { provinces: Array.from(provs).sort(), cities: Array.from(cities).sort(), subdistricts: Array.from(subs).sort(), sources: Array.from(srcs).sort(), payments: Array.from(pays).sort(), banks: Array.from(banks).sort(), products: Array.from(prods).sort() },
+            recoveryInsights: { issueName: issuesStat.n, issueCount: issuesStat.c, provName: safeName(topProvList), provCount: safeCount(topProvList), cityName: safeName(topCityList), cityCount: safeCount(topCityList), subName: safeName(topSubList), subCount: safeCount(topSubList), prodName: safeName(topProdList), prodCount: safeCount(topProdList), sourceName: safeName(topSrcList), sourceCount: safeCount(topSrcList), payName: safeName(topPayList), payCount: safeCount(topPayList), finName: safeName(topFinList), finCount: safeCount(topFinList) },
             totalLostPotential: lostRevenue,
             highRiskLocations: { provinces: topProvList, cities: topCityList, subdistricts: topSubList },
-            topProblematicProducts: topProdList,
-            topProblematicSources: topSrcList,
-            topProblematicPayments: topPayList,
-            topProblematicFinancialEntities: topFinList,
-            recoveryInsights 
+            topProblematicProducts: topProdList, topProblematicSources: topSrcList, topProblematicPayments: topPayList, topProblematicFinancialEntities: topFinList,
+            abandonedOrders: abandoned, rtsOrders: rts, canceledOrders: canceled, stuckPendingOrders: stuck
         };
-    }, [rawData, isDigitalMode, startDate, endDate]); // Dependency ditambahkan
+    }, [rawData, isDigitalMode, startDate, endDate]);
 
-    const allIssues = [...stuckPendingOrders, ...abandonedOrders, ...rtsOrders, ...canceledOrders];
+    // --- LOGIKA FILTERING ---
     const filteredIssues = useMemo(() => {
         return allIssues.filter(item => {
             if (filterIssue !== 'All' && !item.issueType.includes(filterIssue)) return false;
-            if (filterValue === 'High' && (item[COL_NET_REVENUE] || 0) < 500000) return false;
+            if (filterValue === 'High' && safeFloat(item[COL_NET_REVENUE]) < 500000) return false;
+            
             if (searchTerm) {
                 const term = searchTerm.toLowerCase();
-                return (item[COL_NAME]||'').toLowerCase().includes(term) || (item[COL_PHONE]||'').toLowerCase().includes(term) || (item[COL_ORDER_ID]||'').toLowerCase().includes(term);
+                const match1 = (item[COL_NAME]||'').toLowerCase().includes(term);
+                const match2 = (item[COL_PHONE]||'').toLowerCase().includes(term);
+                const match3 = (item[COL_ORDER_ID]||'').toLowerCase().includes(term);
+                if (!match1 && !match2 && !match3) return false;
             }
+
+            if (!isDigitalMode) {
+                if (filterProv !== 'All' && item[COL_PROVINCE] !== filterProv) return false;
+                if (filterCity !== 'All' && item[COL_CITY] !== filterCity) return false;
+                if (filterSub !== 'All' && item[COL_SUBDISTRICT] !== filterSub) return false;
+            }
+
+            if (filterSrc !== 'All') {
+                let s = (item[COL_UTM_SOURCE]||'Organic/Direct').trim();
+                if (!s || s === '-') s = 'Organic/Direct';
+                if (s.charAt(0).toUpperCase() + s.slice(1) !== filterSrc) return false;
+            }
+
+            if (filterPay !== 'All') {
+                let p = (item[COL_PAYMENT_METHOD] || item['epayment_provider'] || 'Lainnya').trim();
+                if (!p || p === '-') p = 'Lainnya';
+                if (p.toUpperCase().replace('_', ' ') !== filterPay) return false;
+            }
+
+            if (filterBank !== 'All') {
+                if ((item[COL_FINANCIAL_ENTITY] || '').toUpperCase() !== filterBank) return false;
+            }
+
+            if (filterProd !== 'All') {
+                let hasProduct = false;
+                Object.keys(item).forEach(k => { 
+                    if (k.startsWith('variant:') && parseFloat(item[k]) > 0 && k.replace('variant:', '').replace(/_/g, ' ').toUpperCase() === filterProd) hasProduct = true; 
+                });
+                if (!hasProduct) return false;
+            }
+
             return true;
         });
-    }, [allIssues, filterIssue, filterValue, searchTerm]);
+    }, [allIssues, filterIssue, filterValue, searchTerm, filterProv, filterCity, filterSub, filterSrc, filterPay, filterBank, filterProd, isDigitalMode]);
 
     const getWhatsAppLink = (item, productName) => {
         const phone = item[COL_PHONE];
@@ -2236,139 +2652,43 @@ const RecoveryAnalysisView = ({ rawData, isDigitalMode }) => {
         let p = phone.toString().replace(/[^0-9]/g, '');
         if (p.startsWith('08')) p = '62' + p.substring(1); else if (p.startsWith('8')) p = '62' + p;
         if (p.length < 10) return null; 
-        
         let k = 'Default';
-        if (item.issueType.includes('Stuck')) k = 'Stuck';
-        else if (item.issueType.includes('Pending')) k = 'Pending';
-        else if (item.issueType.includes('RTS')) k = 'RTS';
-        else if (item.issueType.includes('Canceled')) k = 'Canceled';
-
-        let msg = templates[k].replace(/{name}/g, item[COL_NAME]||'Kak').replace(/{product}/g, productName||'Produk').replace(/{value}/g, formatRupiah(item[COL_NET_REVENUE]||0)).replace(/{phone}/g, item[COL_PHONE]||'').replace(/{address}/g, item[COL_ADDRESS]||'').replace(/{subdistrict}/g, item[COL_SUBDISTRICT]||'');
+        if (item.issueType.includes('Stuck')) k = 'Stuck'; else if (item.issueType.includes('Pending')) k = 'Pending'; else if (item.issueType.includes('RTS')) k = 'RTS'; else if (item.issueType.includes('Canceled')) k = 'Canceled';
+        let msg = templates[k].replace(/{name}/g, item[COL_NAME]||'Kak').replace(/{product}/g, productName||'Produk').replace(/{value}/g, formatRupiah(safeFloat(item[COL_NET_REVENUE]||0))).replace(/{phone}/g, item[COL_PHONE]||'').replace(/{address}/g, item[COL_ADDRESS]||'').replace(/{subdistrict}/g, item[COL_SUBDISTRICT]||'');
         return `https://wa.me/${p}?text=${encodeURIComponent(msg)}`;
     };
 
     const handleChatClick = (id) => setClickedChats(prev => new Set(prev).add(id));
-
-    // --- EXPORT CSV ---
-    const handleExportRecovery = () => {
-        if (filteredIssues.length === 0) { alert("Tidak ada data untuk diekspor."); return; }
-        let locationHeaders = [];
-        if (isDigitalMode) { locationHeaders = ["Email"]; } else { locationHeaders = ["Alamat Lengkap", "Kecamatan", "Kota/Kab", "Provinsi"]; }
-        const headers = ["No", "Order ID", "Tipe Isu", "Status", "Nama Pelanggan", "No HP", ...locationHeaders, "Produk", "Nilai (IDR)", "Link WA"];
-        const q = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`; 
-        const rows = filteredIssues.map((item, index) => {
-            const variantKey = Object.keys(item).find(k => k.startsWith('variant:') && item[k] > 0);
-            const prodName = variantKey ? variantKey.replace('variant:', '').replace(/_/g, ' ') : '-';
-            const waLink = getWhatsAppLink(item, prodName) || '-';
-            let locationData = [];
-            if (isDigitalMode) { locationData = [q(item.email || '-')]; } else {
-                locationData = [q(item[COL_ADDRESS] || '-'), q(item[COL_SUBDISTRICT] || '-'), q(item[COL_CITY] || '-'), q(item[COL_PROVINCE] || '-')];
-            }
-            return [index + 1, q(item[COL_ORDER_ID]), q(item.issueType), q(item.order_status), q(item[COL_NAME]), q(item[COL_PHONE]), ...locationData, q(prodName), item[COL_NET_REVENUE] || 0, q(waLink)].join(",");
-        });
-        const csvContent = [headers.join(","), ...rows].join("\n");
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `Recovery_Data_${isDigitalMode ? 'Digital' : 'Fisik'}_${new Date().toISOString().slice(0,10)}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
+    const handleExportRecovery = () => { if (filteredIssues.length === 0) { alert("Data kosong"); return; } const rows = filteredIssues.map((item,i) => { const variantKey = Object.keys(item).find(k => k.startsWith('variant:') && item[k] > 0); const prodName = variantKey ? variantKey.replace('variant:', '').replace(/_/g, ' ') : '-'; const waLink = getWhatsAppLink(item, prodName); return `${i+1},${item[COL_ORDER_ID]},${item.issueType},"${item[COL_NAME]}",${item[COL_PHONE]},${safeFloat(item[COL_NET_REVENUE])},${waLink}`; }); const blob = new Blob(["No,Order ID,Isu,Nama,HP,Nilai,LinkWA\n" + rows.join("\n")], { type: "text/csv" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "Recovery.csv"; link.click(); };
 
     return (
         <div className="space-y-8 animate-fade-in">
             <TemplateEditor />
             
-            {/* --- HEADER WARNING --- */}
-            <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm">
-                <div className="flex justify-between items-center">
-                    <div className="flex">
-                        <div className="flex-shrink-0"><AlertTriangle className="h-5 w-5 text-red-500" /></div>
-                        <div className="ml-3">
-                            <h3 className="text-sm font-medium text-red-800">Zona Recovery & Retensi</h3>
-                            <p className="mt-1 text-sm text-red-700">Prioritaskan order <strong>Stuck Pending (3-7 Hari)</strong> untuk di-follow up segera.</p>
-                        </div>
-                    </div>
-                    
-                    {/* INPUT FILTER TANGGAL */}
-                    <div className="hidden sm:flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-red-200">
-                        <span className="text-[10px] font-bold text-red-500 uppercase">Filter Tgl:</span>
-                        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="text-xs border-none focus:ring-0 text-gray-600 bg-transparent p-0"/>
-                        <span className="text-gray-400">-</span>
-                        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="text-xs border-none focus:ring-0 text-gray-600 bg-transparent p-0"/>
-                        {(startDate || endDate) && <button onClick={()=>{setStartDate('');setEndDate('');}} className="text-red-500 hover:bg-red-50 rounded p-1"><XCircle className="w-3 h-3"/></button>}
-                    </div>
-                </div>
+            {/* 1. HEADER */}
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex items-center"><div className="flex-shrink-0"><AlertTriangle className="h-5 w-5 text-red-500" /></div><div className="ml-3"><h3 className="text-sm font-medium text-red-800">Zona Recovery</h3><p className="mt-1 text-sm text-red-700">Prioritaskan order <strong>Stuck Pending</strong>.</p></div></div>
+                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-red-200"><span className="text-[10px] font-bold text-red-500 uppercase">Filter Tgl:</span><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="text-xs border-none bg-transparent p-0"/><span className="text-gray-400">-</span><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="text-xs border-none bg-transparent p-0"/>{(startDate || endDate) && <button onClick={()=>{setStartDate('');setEndDate('');}}><XCircle className="w-3 h-3 text-red-500"/></button>}</div>
             </div>
 
+            {/* 2. STATS CARDS */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-red-100">
-                    <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2"><Zap className="w-4 h-4 mr-2 text-yellow-600" /> Prioritas Penanganan (High Impact)</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <StatCard compact title="Potensi Omzet Hilang" value={formatRupiah(totalLostPotential)} icon={DollarSign} color="#EF4444" />
-                        <StatCard compact title="Stuck Pending (3-7 Hari)" value={stuckPendingOrders.length} icon={Zap} color="#10B981" unit="Hot Leads" />
-                    </div>
-                </div>
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-red-100">
-                    <h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2"><XCircle className="w-4 h-4 mr-2 text-red-600" /> Analisis Kegagalan</h3>
-                    <div className={`grid grid-cols-1 ${!isDigitalMode ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3`}>
-                        <StatCard compact title="Pending (> 7 Hari)" value={abandonedOrders.length} icon={Clock} color="#F59E0B" unit="Order" />
-                        {!isDigitalMode && <StatCard compact title="RTS (Retur)" value={rtsOrders.length} icon={Truck} color="#DC2626" unit="Order" />}
-                        <StatCard compact title="Canceled (Batal)" value={canceledOrders.length} icon={XCircle} color="#6B7280" unit="Order" />
-                    </div>
-                </div>
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-red-100"><h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2"><Zap className="w-4 h-4 mr-2 text-yellow-600" /> Prioritas Penanganan</h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><StatCard compact title="Potensi Omzet Hilang" value={formatRupiah(totalLostPotential)} icon={DollarSign} color="#EF4444" /><StatCard compact title="Stuck Pending (3-7 Hari)" value={stuckPendingOrders.length} icon={Zap} color="#10B981" unit="Hot Leads" /></div></div>
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-red-100"><h3 className="text-base font-bold text-gray-700 flex items-center mb-4 border-b pb-2"><XCircle className="w-4 h-4 mr-2 text-red-600" /> Analisis Kegagalan</h3><div className={`grid grid-cols-1 ${!isDigitalMode ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3`}><StatCard compact title="Pending (> 7 Hari)" value={abandonedOrders.length} icon={Clock} color="#F59E0B" unit="Order" />{!isDigitalMode && <StatCard compact title="RTS (Retur)" value={rtsOrders.length} icon={Truck} color="#DC2626" unit="Order" />}<StatCard compact title="Canceled" value={canceledOrders.length} icon={XCircle} color="#6B7280" unit="Order" /></div></div>
             </div>
 
+            {/* 3. INSIGHTS SUMMARY (DENGAN STRATEGI RECOVERY) */}
             <div className="bg-gradient-to-r from-red-50 via-orange-50 to-pink-50 p-6 rounded-xl shadow-md border border-red-100">
                 <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4"><Activity className="w-5 h-5 mr-2 text-red-600" /> Kesimpulan Analisis Risiko & Recovery</h3>
                 <div className={`grid grid-cols-1 sm:grid-cols-2 ${isDigitalMode ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4 mb-4`}>
-                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Isu Paling Dominan</p>
-                        <p className="text-sm font-bold text-red-700 line-clamp-1">{recoveryInsights.issueName}</p>
-                        <p className="text-xs text-gray-500 font-semibold mt-1">{recoveryInsights.issueCount.toLocaleString()} Kasus</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Produk Sering Bermasalah</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-2 leading-tight" title={recoveryInsights.prodName}>{recoveryInsights.prodName}</p>
-                        <p className="text-xs text-orange-600 font-semibold mt-1">{recoveryInsights.prodCount.toLocaleString()} Total Isu</p>
-                    </div>
-                    {!isDigitalMode && (
-                        <>
-                            <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
-                                <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Provinsi Paling Rawan</p>
-                                <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.provName}</p>
-                                <p className="text-xs text-red-600 font-semibold mt-1">{recoveryInsights.provCount.toLocaleString()} Isu</p>
-                            </div>
-                            <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
-                                <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Kota/Kab Paling Rawan</p>
-                                <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.cityName}</p>
-                                <p className="text-xs text-red-600 font-semibold mt-1">{recoveryInsights.cityCount.toLocaleString()} Isu</p>
-                            </div>
-                            <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
-                                <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Kecamatan Paling Rawan</p>
-                                <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.subName}</p>
-                                <p className="text-xs text-red-600 font-semibold mt-1">{recoveryInsights.subCount.toLocaleString()} Isu</p>
-                            </div>
-                        </>
-                    )}
-                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Sumber Trafik Berisiko</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.sourceName}</p>
-                        <p className="text-xs text-gray-500 font-semibold mt-1">{recoveryInsights.sourceCount.toLocaleString()} Kasus</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Metode Bayar Kendala</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.payName}</p>
-                        <p className="text-xs text-purple-600 font-semibold mt-1">{recoveryInsights.payCount.toLocaleString()} Kasus</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1">Bank/VA Sering Gagal</p>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-1">{recoveryInsights.finName}</p>
-                        <p className="text-xs text-blue-600 font-semibold mt-1">{recoveryInsights.finCount.toLocaleString()} Kasus</p>
-                    </div>
+                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center"><p className="text-[10px] uppercase font-bold text-gray-500">Isu Dominan</p><p className="text-sm font-bold text-red-700 truncate">{recoveryInsights.issueName}</p><p className="text-xs text-gray-500 mt-1">{recoveryInsights.issueCount} Kasus</p></div>
+                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center"><p className="text-[10px] uppercase font-bold text-gray-500">Produk Bermasalah</p><p className="text-sm font-bold text-gray-800 truncate">{recoveryInsights.prodName}</p><p className="text-xs text-orange-600 mt-1">{recoveryInsights.prodCount} Isu</p></div>
+                    {!isDigitalMode && (<><div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center"><p className="text-[10px] uppercase font-bold text-gray-500">Provinsi Rawan</p><p className="text-sm font-bold text-gray-800 truncate">{recoveryInsights.provName}</p><p className="text-xs text-red-600 mt-1">{recoveryInsights.provCount} Isu</p></div><div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center"><p className="text-[10px] uppercase font-bold text-gray-500">Kota Rawan</p><p className="text-sm font-bold text-gray-800 truncate">{recoveryInsights.cityName}</p><p className="text-xs text-red-600 mt-1">{recoveryInsights.cityCount} Isu</p></div><div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center"><p className="text-[10px] uppercase font-bold text-gray-500">Kecamatan Rawan</p><p className="text-sm font-bold text-gray-800 truncate">{recoveryInsights.subName}</p><p className="text-xs text-red-600 mt-1">{recoveryInsights.subCount} Isu</p></div></>)}
+                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center"><p className="text-[10px] uppercase font-bold text-gray-500">Sumber Iklan Rawan</p><p className="text-sm font-bold text-gray-800 truncate">{recoveryInsights.sourceName}</p><p className="text-xs text-gray-500 mt-1">{recoveryInsights.sourceCount} Kasus</p></div>
+                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center"><p className="text-[10px] uppercase font-bold text-gray-500">Metode Bayar Kendala</p><p className="text-sm font-bold text-gray-800 truncate">{recoveryInsights.payName}</p><p className="text-xs text-purple-600 mt-1">{recoveryInsights.payCount} Kasus</p></div>
+                    <div className="bg-white p-4 rounded-lg border border-red-50 shadow-sm flex flex-col justify-center"><p className="text-[10px] uppercase font-bold text-gray-500">Bank Sering Gagal</p><p className="text-sm font-bold text-gray-800 truncate">{recoveryInsights.finName}</p><p className="text-xs text-blue-600 mt-1">{recoveryInsights.finCount} Kasus</p></div>
                 </div>
+                {/* --- BAGIAN STRATEGI RECOVERY (SUDAH ADA DISINI) --- */}
                 <div className="bg-white/60 p-4 rounded-lg border border-red-100 text-sm text-gray-700 leading-relaxed shadow-inner">
                     <p>
                         <span className="font-bold text-red-700">💡 Strategi Recovery:</span> Isu terbesar saat ini adalah <strong>{recoveryInsights.issueName}</strong>. 
@@ -2379,130 +2699,210 @@ const RecoveryAnalysisView = ({ rawData, isDigitalMode }) => {
                 </div>
             </div>
 
-            {/* --- ZONA MERAH (ADA TOTAL REVENUE) --- */}
-            {!isDigitalMode && highRiskLocations.provinces.length > 0 && (
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2"><MapPin className="w-5 h-5 mr-2 text-red-600" /> Zona Merah: Top 10 Lokasi Sering Batal / Retur (High Risk)</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {['Provinsi', 'Kota/Kab', 'Kecamatan'].map((title, i) => {
-                            const data = i === 0 ? highRiskLocations.provinces : i === 1 ? highRiskLocations.cities : highRiskLocations.subdistricts;
-                            return (
-                                <div key={title} className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col h-80">
-                                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center flex-shrink-0">{title}</h4>
-                                    <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                                        {data.map((loc, idx) => (
-                                            <div key={idx} className="flex justify-between items-center text-sm p-2 hover:bg-gray-100 rounded transition-colors">
-                                                <div className="flex flex-col min-w-0">
-                                                    <span className="font-medium text-gray-700 truncate max-w-[120px]" title={loc.name}>{idx+1}. {loc.name}</span>
-                                                    <span className="text-[10px] text-red-500 font-semibold">{formatRupiah(loc.totalRevenue)}</span>
-                                                </div>
-                                                <span className="font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full text-xs flex-shrink-0">{loc.count}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
+            {/* 4. ZONA MERAH (CHARTS) */}
+            {!isDigitalMode && highRiskLocations.provinces.length > 0 && (<div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100"><h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2"><MapPin className="w-5 h-5 mr-2 text-red-600" /> Zona Merah: Top Lokasi Batal/Retur</h3><div className="grid grid-cols-1 md:grid-cols-3 gap-6">{['Provinsi', 'Kota', 'Kecamatan'].map((t, i) => (<div key={t} className="bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col h-80"><h4 className="text-xs font-bold text-gray-500 uppercase mb-3">{t}</h4><div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">{(i===0?highRiskLocations.provinces:i===1?highRiskLocations.cities:highRiskLocations.subdistricts).map((l,x)=>(<div key={x} className="flex justify-between items-center text-sm p-2 hover:bg-gray-100 rounded"><div className="flex flex-col"><span className="font-medium text-gray-700 truncate max-w-[120px]">{x+1}. {l.name}</span><span className="text-[10px] text-red-500 font-semibold">{formatRupiah(l.totalRevenue)}</span></div><span className="font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded text-xs">{l.count}</span></div>))}</div></div>))}</div></div>)}
 
+            {/* 5. MARKETING & PAYMENT CHARTS */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2"><TrendingDown className="w-5 h-5 mr-2 text-orange-600" /> Top Sumber Iklan</h3>
-                    <div className="space-y-3">{topProblematicSources.map((s,i)=>(<div key={i} className="flex justify-between items-center bg-orange-50 p-3 rounded-lg"><div className="flex gap-3"><span className="text-xs font-bold bg-orange-400 text-white w-6 h-6 flex items-center justify-center rounded-full">#{i+1}</span><div><p className="text-sm font-semibold text-gray-800">{s.name}</p></div></div><div className="text-right"><p className="text-lg font-extrabold text-orange-600">{s.total}</p><p className="text-[10px] font-bold text-red-500 mt-0.5">{formatRupiah(s.totalRevenue)}</p></div></div>))}</div>
-                </div>
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2"><CreditCard className="w-5 h-5 mr-2 text-purple-600" /> Top Metode Bayar</h3>
-                    <div className="space-y-3">{topProblematicPayments.map((p,i)=>(<div key={i} className="flex justify-between items-center bg-purple-50 p-3 rounded-lg"><div className="flex gap-3"><span className="text-xs font-bold bg-purple-400 text-white w-6 h-6 flex items-center justify-center rounded-full">#{i+1}</span><div><p className="text-sm font-semibold text-gray-800">{p.name}</p></div></div><div className="text-right"><p className="text-lg font-extrabold text-purple-600">{p.total}</p><p className="text-[10px] font-bold text-red-500 mt-0.5">{formatRupiah(p.totalRevenue)}</p></div></div>))}</div>
-                </div>
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2"><Landmark className="w-5 h-5 mr-2 text-blue-600" /> Top Bank/Layanan</h3>
-                    <div className="space-y-3">{topProblematicFinancialEntities.map((f,i)=>(<div key={i} className="flex justify-between items-center bg-blue-50 p-3 rounded-lg"><div className="flex gap-3"><span className="text-xs font-bold bg-blue-400 text-white w-6 h-6 flex items-center justify-center rounded-full">#{i+1}</span><div><p className="text-sm font-semibold text-gray-800">{f.name}</p></div></div><div className="text-right"><p className="text-lg font-extrabold text-blue-600">{f.total}</p><p className="text-[10px] font-bold text-red-500 mt-0.5">{formatRupiah(f.totalRevenue)}</p></div></div>))}</div>
-                </div>
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100"><h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center"><TrendingDown className="w-5 h-5 mr-2 text-orange-600" /> Top Sumber Iklan</h3><div className="space-y-3">{topProblematicSources.map((s,i)=>(<div key={i} className="flex justify-between items-center bg-orange-50 p-2 rounded"><div className="flex gap-2"><span className="text-xs font-bold bg-orange-400 text-white w-5 h-5 flex items-center justify-center rounded-full">#{i+1}</span><p className="text-sm font-semibold text-gray-800">{s.name}</p></div><div className="text-right"><p className="text-sm font-bold text-orange-600">{s.total}</p><p className="text-[9px] text-red-500">{formatRupiah(s.totalRevenue)}</p></div></div>))}</div></div>
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100"><h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center"><CreditCard className="w-5 h-5 mr-2 text-purple-600" /> Top Metode Bayar</h3><div className="space-y-3">{topProblematicPayments.map((p,i)=>(<div key={i} className="flex justify-between items-center bg-purple-50 p-2 rounded"><div className="flex gap-2"><span className="text-xs font-bold bg-purple-400 text-white w-5 h-5 flex items-center justify-center rounded-full">#{i+1}</span><p className="text-sm font-semibold text-gray-800">{p.name}</p></div><div className="text-right"><p className="text-sm font-bold text-purple-600">{p.total}</p><p className="text-[9px] text-red-500">{formatRupiah(p.totalRevenue)}</p></div></div>))}</div></div>
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100"><h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center"><Landmark className="w-5 h-5 mr-2 text-blue-600" /> Top Bank</h3><div className="space-y-3">{topProblematicFinancialEntities.map((f,i)=>(<div key={i} className="flex justify-between items-center bg-blue-50 p-2 rounded"><div className="flex gap-2"><span className="text-xs font-bold bg-blue-400 text-white w-5 h-5 flex items-center justify-center rounded-full">#{i+1}</span><p className="text-sm font-semibold text-gray-800">{f.name}</p></div><div className="text-right"><p className="text-sm font-bold text-blue-600">{f.total}</p><p className="text-[9px] text-red-500">{formatRupiah(f.totalRevenue)}</p></div></div>))}</div></div>
             </div>
 
-            {/* TOP 10 PRODUK (ADA TOTAL REVENUE) */}
-            {topProblematicProducts.length > 0 && (
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <h3 className="text-lg font-bold text-gray-800 flex items-center mb-4 border-b pb-2"><AlertTriangle className="w-5 h-5 mr-2 text-red-600" /> Top 10 Produk Bermasalah (Sering Batal / Macet)</h3>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        {topProblematicProducts.map((prod, idx) => (
-                            <div key={idx} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
-                                <div className="flex items-center gap-3 overflow-hidden">
-                                    <span className={`text-xs font-bold text-white w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full ${idx<3?'bg-red-500':'bg-gray-400'}`}>#{idx+1}</span>
-                                    <div className="min-w-0">
-                                        <p className="text-sm font-bold text-gray-800 truncate max-w-[200px]" title={prod.name}>{prod.name}</p>
-                                    </div>
-                                </div>
-                                <div className="text-right flex-shrink-0 ml-2">
-                                    <p className="text-xl font-extrabold text-gray-800">{prod.total}</p>
-                                    <p className="text-[10px] font-bold text-red-500 mt-0.5">{formatRupiah(prod.totalRevenue)}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
+            {/* 6. PRODUCT CHART */}
+            {topProblematicProducts.length > 0 && (<div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100"><h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center"><AlertTriangle className="w-5 h-5 mr-2 text-red-600" /> Top 10 Produk Bermasalah</h3><div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{topProblematicProducts.map((p,i)=>(<div key={i} className="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-200"><div className="flex items-center gap-2"><span className="text-xs font-bold bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center">#{i+1}</span><p className="text-sm font-bold text-gray-800 truncate max-w-[200px]">{p.name}</p></div><div className="text-right"><p className="text-sm font-bold text-gray-800">{p.total}</p><p className="text-[9px] text-red-500">{formatRupiah(p.totalRevenue)}</p></div></div>))}</div></div>)}
 
+            {/* 7. MAIN TABLE & FILTERS */}
             <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
                 <div className="flex flex-col mb-6 gap-4">
-                    <div className="flex justify-between items-center border-b pb-2">
-                        <h3 className="text-lg font-bold text-gray-800 flex items-center"><RefreshCw className="w-5 h-5 mr-2 text-indigo-600" /> Daftar Prioritas Follow-Up</h3>
-                        <button onClick={() => setShowTemplateModal(true)} className="flex items-center px-3 py-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 rounded-lg"><MessageSquare className="w-4 h-4 mr-2" /> Atur Template</button>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
-                        <div className="flex gap-3 w-full sm:w-auto">
-                            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Cari Nama / HP / Order ID..." className="block w-full sm:w-64 px-3 py-1.5 border border-gray-300 rounded-md text-sm"/>
-                            <select value={filterIssue} onChange={(e) => setFilterIssue(e.target.value)} className="bg-white border border-gray-300 text-gray-700 text-sm rounded-md p-1.5 cursor-pointer">
-                                <option value="All">Semua Masalah</option><option value="Stuck">Stuck Pending</option><option value="Pending">Pending Lama</option>
-                                {!isDigitalMode && <option value="RTS">RTS (Retur)</option>}
-                                <option value="Canceled">Canceled</option>
-                            </select>
+                    <div className="flex justify-between items-center border-b pb-2"><h3 className="text-lg font-bold text-gray-800 flex items-center"><RefreshCw className="w-5 h-5 mr-2 text-indigo-600" /> Daftar Follow-Up</h3><button onClick={() => setShowTemplateModal(true)} className="flex items-center px-3 py-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 rounded-lg"><MessageSquare className="w-4 h-4 mr-2" /> Template</button></div>
+                    
+                    {/* NEW FILTER GRID START */}
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                            <div className="col-span-1 sm:col-span-2 relative"><input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Cari Nama / HP / Order ID..." className="pl-9 pr-3 py-2 border border-gray-300 rounded-md text-sm w-full"/><Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" /></div>
+                            <select value={filterIssue} onChange={(e) => setFilterIssue(e.target.value)} className="bg-white border border-gray-300 text-gray-700 text-sm rounded-md p-2 cursor-pointer col-span-1 sm:col-span-2"><option value="All">Semua Masalah</option><option value="Stuck">Stuck Pending</option><option value="Pending">Pending Lama</option>{!isDigitalMode && <option value="RTS">RTS</option>}<option value="Canceled">Canceled</option></select>
                         </div>
-                        <button onClick={handleExportRecovery} disabled={filteredIssues.length === 0} className={`flex items-center px-4 py-2 text-sm font-bold text-white rounded-lg shadow-sm transition-colors ${filteredIssues.length === 0 ? 'bg-gray-300 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}>
-                            <Download className="w-4 h-4 mr-2" /> Export CSV
-                        </button>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                            {!isDigitalMode && (<><select value={filterProv} onChange={(e) => setFilterProv(e.target.value)} className="bg-white border border-gray-300 text-gray-700 text-xs rounded-md p-2"><option value="All">Semua Prov.</option>{filterOptions.provinces.map(o=><option key={o} value={o}>{o}</option>)}</select><select value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className="bg-white border border-gray-300 text-gray-700 text-xs rounded-md p-2"><option value="All">Semua Kota</option>{filterOptions.cities.map(o=><option key={o} value={o}>{o}</option>)}</select><select value={filterSub} onChange={(e) => setFilterSub(e.target.value)} className="bg-white border border-gray-300 text-gray-700 text-xs rounded-md p-2"><option value="All">Semua Kec.</option>{filterOptions.subdistricts.map(o=><option key={o} value={o}>{o}</option>)}</select></>)}
+                            <select value={filterSrc} onChange={(e) => setFilterSrc(e.target.value)} className="bg-white border border-gray-300 text-gray-700 text-xs rounded-md p-2"><option value="All">Semua Sumber</option>{filterOptions.sources.map(o=><option key={o} value={o}>{o}</option>)}</select>
+                            <select value={filterPay} onChange={(e) => setFilterPay(e.target.value)} className="bg-white border border-gray-300 text-gray-700 text-xs rounded-md p-2"><option value="All">Semua Metode</option>{filterOptions.payments.map(o=><option key={o} value={o}>{o}</option>)}</select>
+                            <select value={filterBank} onChange={(e) => setFilterBank(e.target.value)} className="bg-white border border-gray-300 text-gray-700 text-xs rounded-md p-2"><option value="All">Semua Bank</option>{filterOptions.banks.map(o=><option key={o} value={o}>{o}</option>)}</select>
+                            <select value={filterValue} onChange={(e) => setFilterValue(e.target.value)} className="bg-white border border-gray-300 text-gray-700 text-xs rounded-md p-2"><option value="All">Semua Nilai</option><option value="High">High Value (&gt;500k)</option></select>
+                            <select value={filterProd} onChange={(e) => setFilterProd(e.target.value)} className={`bg-white border border-gray-300 text-gray-700 text-xs rounded-md p-2 ${isDigitalMode?'col-span-2':''}`}><option value="All">Semua Produk</option>{filterOptions.products.map(o=><option key={o} value={o}>{o}</option>)}</select>
+                        </div>
+                        <div className="mt-3 flex justify-between items-center border-t border-gray-200 pt-3">
+                            <span className="text-xs font-bold text-gray-500">Hasil Filter: {filteredIssues.length} Data</span>
+                            <button onClick={handleExportRecovery} disabled={filteredIssues.length === 0} className={`flex items-center px-4 py-1.5 text-xs font-bold text-white rounded shadow-sm transition-colors ${filteredIssues.length === 0 ? 'bg-gray-300 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}>
+                                <Download className="w-3 h-3 mr-1" /> Export CSV
+                            </button>
+                        </div>
                     </div>
+                    {/* NEW FILTER GRID END */}
                 </div>
-                <div className="overflow-x-auto max-h-[600px]">
+
+                {/* --- TABEL PRIORITAS FOLLOW-UP (UPDATE: LOKASI LENGKAP) --- */}
+                <div className="overflow-x-auto max-h-[600px] border-t border-gray-200">
                     <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50 sticky top-0 z-10">
+                        <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
                             <tr>
-                                <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase w-10">No.</th>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Tipe Isu</th>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Pelanggan</th>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">{isDigitalMode ? "Email" : "Lokasi Kirim"}</th>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Produk</th>
-                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Nilai</th>
-                                <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase">Aksi WA</th>
+                                <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-12">Prio</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status & Urgensi</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Pelanggan & Lokasi</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Konteks Order</th>
+                                <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Nilai (IDR)</th>
+                                <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Action</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                             {filteredIssues.map((item, idx) => {
+                                // Data Preparation
                                 const variantKey = Object.keys(item).find(k => k.startsWith('variant:') && item[k] > 0);
-                                const prodName = variantKey ? variantKey.replace('variant:', '').replace(/_/g, ' ') : '-';
+                                // [UPDATE] Tambahkan .toUpperCase() di sini
+                                const prodName = variantKey ? variantKey.replace('variant:', '').replace(/_/g, ' ').toUpperCase() : '-';
                                 const waLink = getWhatsAppLink(item, prodName);
                                 const isClicked = clickedChats.has(item[COL_ORDER_ID]);
+                                
+                                // Data Tambahan
+                                const paymentMethod = (item[COL_PAYMENT_METHOD] || item['epayment_provider'] || 'Unknown').replace(/_/g, ' ').toUpperCase();
+                                const source = (item[COL_UTM_SOURCE] || 'Direct').toUpperCase();
+                                const bank = (item[COL_FINANCIAL_ENTITY] || '').toUpperCase();
+
+                                // Urgency Color Logic
+                                let badgeColor = '';
+                                if (item.issueType.includes('Stuck')) {
+                                    badgeColor = 'bg-emerald-100 text-emerald-800 border border-emerald-200'; // Hijau
+                                } else if (item.issueType.includes('Pending')) {
+                                    badgeColor = 'bg-amber-100 text-amber-800 border border-amber-200'; // Kuning
+                                } else if (item.issueType.includes('Canceled') || item.issueType.includes('RTS')) {
+                                    badgeColor = 'bg-red-100 text-red-800 border border-red-200'; // Merah
+                                } else {
+                                    badgeColor = 'bg-gray-100 text-gray-800 border border-gray-200';
+                                }
+
                                 return (
-                                    <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-4 py-3 text-center text-sm text-gray-600">{idx + 1}.</td>
-                                        <td className="px-4 py-3"><span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${item.issueType.includes('Stuck') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{item.issueType}</span><div className="text-[10px] text-gray-500 mt-1">{item.daysSince} hari lalu</div></td>
-                                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{item[COL_NAME]}<div className="text-xs text-gray-500">{item[COL_PHONE]}</div></td>
-                                        <td className="px-4 py-3 text-xs text-gray-700">{isDigitalMode ? (item.email || '-') : <>{item[COL_CITY] || '-'}<br/>{item[COL_PROVINCE] || '-'}</>}</td>
-                                        <td className="px-4 py-3 text-xs text-gray-700 max-w-[150px] truncate">{prodName}</td>
-                                        <td className="px-4 py-3 text-sm font-bold text-gray-900">{formatRupiah(item[COL_NET_REVENUE])}</td>
-                                        <td className="px-4 py-3 text-center">{waLink ? <a href={waLink} target="_blank" rel="noopener noreferrer" onClick={() => handleChatClick(item[COL_ORDER_ID])} className={`inline-flex items-center px-3 py-1.5 text-white text-xs font-bold rounded-full ${isClicked ? 'bg-gray-400' : 'bg-green-500 hover:bg-green-600'}`}><MessageSquare className="w-3 h-3 mr-1" /> {isClicked ? 'Dikirim' : 'Chat'}</a> : <span className="text-gray-400 text-xs">No Phone</span>}</td>
+                                    <tr key={idx} className="hover:bg-indigo-50/30 transition-colors group">
+                                        {/* Kolom 1: No */}
+                                        <td className="px-4 py-4 text-center text-xs text-gray-400 group-hover:text-indigo-500 font-medium">
+                                            {idx + 1}
+                                        </td>
+
+                                        {/* Kolom 2: Status & Urgensi */}
+                                        <td className="px-4 py-4 whitespace-nowrap">
+                                            <div className="flex flex-col items-start gap-1.5">
+                                                <span className={`px-2.5 py-0.5 inline-flex text-[10px] font-bold uppercase rounded-full tracking-wide ${badgeColor}`}>
+                                                    {item.issueType.split(' ')[0]}
+                                                </span>
+                                                <span className="flex items-center text-[10px] text-gray-500 font-medium ml-1">
+                                                    <Clock className="w-3 h-3 mr-1 text-gray-400" /> {item.daysSince} Hari
+                                                </span>
+                                            </div>
+                                        </td>
+
+                                        {/* Kolom 3: Pelanggan (Nama, HP & LOKASI) */}
+                                        <td className="px-4 py-4">
+                                            <div className="flex flex-col max-w-[200px]">
+                                                <span className="text-sm font-bold text-gray-900 line-clamp-1" title={item[COL_NAME]}>
+                                                    {item[COL_NAME]}
+                                                </span>
+                                                <div className="flex items-center text-xs text-gray-500 mt-0.5 font-mono cursor-pointer hover:text-indigo-600" title="Klik untuk copy" onClick={() => navigator.clipboard.writeText(item[COL_PHONE])}>
+                                                    {item[COL_PHONE]} <Copy className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity"/>
+                                                </div>
+                                                <div className="text-[10px] text-gray-500 mt-1.5 leading-tight flex items-start gap-1">
+                                                    <MapPin className="w-3 h-3 flex-shrink-0 mt-0.5 text-gray-400" />
+                                                    {isDigitalMode ? (
+                                                        <span className="italic">{item.email || '-'}</span>
+                                                    ) : (
+                                                        <span>
+                                                            {item[COL_SUBDISTRICT] ? `${item[COL_SUBDISTRICT]}, ` : ''}
+                                                            {item[COL_CITY] ? `${item[COL_CITY]}` : ''}
+                                                            {item[COL_PROVINCE] ? `, ${item[COL_PROVINCE]}` : ''}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </td>
+
+                                        {/* Kolom 4: Konteks Order */}
+                                        <td className="px-4 py-4">
+                                            <div className="flex flex-col gap-1">
+                                                {/* NAMA PRODUK HURU KAPITAL */}
+                                                <span className="text-xs font-bold text-gray-800 truncate max-w-[160px]" title={prodName}>
+                                                    {prodName}
+                                                </span>
+                                                <div className="flex flex-wrap gap-1">
+                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                                                        <CreditCard className="w-2.5 h-2.5 mr-1" /> {bank || paymentMethod.split(' ')[0]}
+                                                    </span>
+                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                                                        {source.slice(0, 8)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </td>
+
+                                        {/* Kolom 5: Nilai Uang */}
+                                        <td className="px-4 py-4 text-right">
+                                            <div className="text-sm font-bold text-gray-900 font-mono">
+                                                {formatRupiah(safeFloat(item[COL_NET_REVENUE]))}
+                                            </div>
+                                            {safeFloat(item[COL_NET_REVENUE]) > 500000 && (
+                                                <span className="inline-block mt-1 text-[9px] font-bold text-white bg-emerald-500 px-1.5 rounded-sm">
+                                                    HIGH VALUE
+                                                </span>
+                                            )}
+                                        </td>
+
+                                        {/* Kolom 6: Action Button */}
+                                        <td className="px-4 py-4 text-center align-middle">
+                                            {waLink ? (
+                                                <a 
+                                                    href={waLink} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer" 
+                                                    onClick={() => handleChatClick(item[COL_ORDER_ID])}
+                                                    className={`
+                                                        inline-flex items-center justify-center w-full sm:w-auto px-4 py-2 rounded-lg text-xs font-bold text-white shadow-sm transition-all transform active:scale-95
+                                                        ${isClicked 
+                                                            ? 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200' 
+                                                            : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 hover:shadow-green-200 shadow-green-100'
+                                                        }
+                                                    `}
+                                                >
+                                                    <MessageSquare className={`w-3.5 h-3.5 mr-1.5 ${isClicked ? 'text-gray-400' : 'text-white'}`} />
+                                                    {isClicked ? 'Followed Up' : 'Chat WA'}
+                                                </a>
+                                            ) : (
+                                                <span className="inline-flex items-center px-2 py-1 bg-gray-50 text-gray-400 text-[10px] rounded border border-gray-200">
+                                                    <XCircle className="w-3 h-3 mr-1"/> No Phone
+                                                </span>
+                                            )}
+                                        </td>
                                     </tr>
                                 );
                             })}
+                            
+                            {/* Empty State */}
+                            {filteredIssues.length === 0 && (
+                                <tr>
+                                    <td colSpan="6" className="px-6 py-12 text-center">
+                                        <div className="flex flex-col items-center justify-center text-gray-400">
+                                            <div className="bg-emerald-50 p-4 rounded-full mb-3">
+                                                <CheckCircle className="w-8 h-8 text-emerald-500" />
+                                            </div>
+                                            <p className="text-base font-medium text-gray-600">Tidak ada isu ditemukan!</p>
+                                            <p className="text-sm mt-1">Cobalah ubah filter tanggal atau status.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
     );
-};
+}; // <--- [PENTING] Pastikan tanda }; ini ada di sini!
 
 // --- NEW COMPONENT: TutorialView ---
 const TutorialView = () => (
@@ -3529,8 +3929,8 @@ function DashboardCRM() {
             case 'report': return <DailyReportView confirmedOrders={processedData.confirmedOrders} customerSegmentationData={customerSegmentationData} rawData={rawData} adsData={adsData} setView={setView} isDigitalMode={isDigitalMode} />;
             case 'recovery': return <RecoveryAnalysisView rawData={rawData} isDigitalMode={isDigitalMode} />;
             case 'products': return <ProductAnalysisView productData={productVariantAnalysis} />;
-            case 'time': return <TimeAnalysisView rawTimeData={rawTimeData} />;
-            case 'heatmap': return <HeatmapAnalysisView heatmapData={heatmapData} maxRevenue={heatmapMaxRevenue} />;
+            case 'time': return <TimeAnalysisView rawData={rawData} />;
+            case 'heatmap': return <HeatmapAnalysisView rawData={rawData} />;
             case 'billing': return <BillingView />;
             case 'tutorial': return <TutorialView />;
             case 'summary':
