@@ -3869,14 +3869,29 @@ function DashboardCRM() {
     }, [user]);
 
     const uploadToSupabase = async (userId, dataArray, fileName) => {
-        const csvString = jsonToCSV(dataArray); 
-        const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
-        const filePath = `${userId}/${fileName}.csv`;
-        const { error: uploadError } = await supabase.storage.from('user-datasets').upload(filePath, blob, { upsert: true, contentType: 'text/csv' });
-        if (uploadError) throw uploadError;
-        const { data: urlData } = supabase.storage.from('user-datasets').getPublicUrl(filePath);
-        return urlData.publicUrl;
-    };
+    const csvString = jsonToCSV(dataArray); 
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    const filePath = `${userId}/${fileName}.csv`;
+
+    // 1. Upload File (Sama seperti sebelumnya)
+    const { error: uploadError } = await supabase.storage
+        .from('user-datasets')
+        .upload(filePath, blob, { upsert: true, contentType: 'text/csv' });
+
+    if (uploadError) throw uploadError;
+
+    // 2. GENERATE SIGNED URL (Link Rahasia)
+    // Angka 31536000 adalah detik dalam 1 Tahun (60 * 60 * 24 * 365)
+    // Artinya link ini valid selama 1 tahun. Setelah itu user harus upload ulang.
+    const { data: signedData, error: signedError } = await supabase.storage
+        .from('user-datasets')
+        .createSignedUrl(filePath, 31536000);
+
+    if (signedError) throw signedError;
+
+    // Kembalikan signedUrl, bukan publicUrl
+    return signedData.signedUrl;
+};
 
     const handleFileUpload = async (event) => {
         setUploadError(null);
@@ -3926,12 +3941,34 @@ function DashboardCRM() {
         } catch (error) { console.error(error); setUploadError(`Gagal upload: ${error.message || error}`); } finally { setIsUploading(false); }
     };
 
-    const handleDeleteData = async () => {
-        if(window.confirm("Apakah Anda yakin ingin menghapus SEMUA data?")) {
-            setRawData([]); setAdsData([]); setShowUploadModal(false);
+   const handleDeleteData = async () => {
+    if(window.confirm("Apakah Anda yakin ingin menghapus SEMUA data? Data tidak bisa dikembalikan.")) {
+        try {
+            // 1. Hapus di State (Layar)
+            setRawData([]); 
+            setAdsData([]); 
+
+            // 2. Hapus Link di Firestore (Agar pas refresh tidak muncul lagi)
+            if (user && user.id) {
+                await setDoc(doc(db, "user_datasets", user.id), { 
+                    salesDataUrl: deleteField(), // Hapus field ini
+                    adsDataUrl: deleteField(),   // Hapus field ini
+                    lastUpdated: new Date() 
+                }, { merge: true });
+                
+                // (Opsional) Hapus File di Supabase. 
+                // Tidak wajib dilakukan sekarang biar hemat coding, 
+                // karena kalau link firestore putus, file di supabase jadi sampah yg tidak bisa diakses.
+            }
+            
+            setShowUploadModal(false);
+            alert("Data berhasil dibersihkan.");
+        } catch (error) {
+            console.error("Gagal menghapus:", error);
+            alert("Gagal menghapus data dari server.");
         }
     }
-
+}
     const summaryTrendData = useMemo(() => dailyTrendAnalysis, [dailyTrendAnalysis]);
 
     const renderContent = () => {
