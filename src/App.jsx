@@ -4,7 +4,7 @@ import { supabase } from './supabaseClient';
 import { db } from "./firebase"; 
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, Sector, ComposedChart, AreaChart, Area, ScatterChart, Scatter, LabelList } from 'recharts';
-import { TrendingUp, MapPin, LayoutDashboard, AlertTriangle, CheckCircle, Upload, Users, DollarSign, List, Globe, Boxes, Award, Calendar, Layers, PlusCircle, Trash2, GitCommit, Target, Filter, Download, Clock, Repeat, MessageSquare, Copy, Info, History, CreditCard, UserCheck, Landmark, Grid3X3, Truck, HelpCircle, FileText, XCircle, Zap, Wallet, ShoppingBag, Activity, PieChart as PieChartIcon, BarChart2, Package, Search, RefreshCw, ArrowRight, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Check, TrendingDown, ClipboardCopy, Megaphone, MousePointer, Eye, Percent, Coins, Star, BookOpen, UserPlus, Heart, Share2, Shield, Gift, Smile, Settings, Save, RotateCcw, Lock } from 'lucide-react';
+import { TrendingUp, MapPin, LayoutDashboard, AlertTriangle, CheckCircle, Upload, Users, DollarSign, List, Globe, Boxes, Award, Calendar, Layers, PlusCircle, Trash2, GitCommit, Target, Filter, Download, Clock, Repeat, MessageSquare, Copy, Info, History, CreditCard, UserCheck, Landmark, Grid3X3, Truck, HelpCircle, FileText, XCircle, Zap, Wallet, ShoppingBag, Activity, PieChart as PieChartIcon, BarChart2, Package, Search, RefreshCw, ArrowRight, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Check, TrendingDown, ClipboardCopy, Megaphone, MousePointer, Eye, Percent, Coins, Star, BookOpen, UserPlus, Heart, Share2, Shield, Gift, Smile, Settings, Save, RotateCcw, Lock, Menu, X } from 'lucide-react';
 import myLogo from "./assets/logocrmauto.png";
 
 /**
@@ -3279,7 +3279,7 @@ const BillingView = () => {
         { 
             id: 'monthly', 
             name: '1 Bulan', 
-            days: 90, 
+            days: 30, 
             price: 99000, //
             popular: false,
             features: ['Akses Full Dashboard', 'Unlimited Upload Data' , 'Support Prioritas']
@@ -3706,6 +3706,7 @@ function DashboardCRM() {
     const { user } = useUser();
     
     // State Definitions
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // State baru untuk Menu HP
     const [view, setView] = useState('summary');
     const [rawData, setRawData] = useState([]);
     const [adsData, setAdsData] = useState([]);
@@ -4100,123 +4101,149 @@ function DashboardCRM() {
 
     const isContentFrozen = trialStatus.expired && view !== 'billing';
 
-    return (
-        <div className="flex h-screen overflow-hidden bg-gray-50">
-            {trialStatus.expired && <ExpiredNotification />}
-            <aside className="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col z-10 relative">
-                <div className="p-6 border-b border-gray-100"><AppLogo /></div>
-                {!trialStatus.loading && (
-                    <div className={`mx-4 mt-4 p-3 rounded-xl text-white shadow-lg ${trialStatus.expired ? 'bg-red-600' : (trialStatus.mode === 'subscription' ? 'bg-emerald-600' : 'bg-indigo-600')}`}>
-                        <div className="flex items-center justify-between mb-1"><span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-black/20">{trialStatus.expired ? 'EXPIRED' : (trialStatus.mode === 'subscription' ? 'Premium Plan' : 'Free Trial')}</span>{trialStatus.expired ? <Lock className="w-3 h-3 text-red-200"/> : <Clock className="w-3 h-3 text-white/70" />}</div>
-                        {trialStatus.expired ? (<p className="text-xs mt-1 font-medium text-red-100">Akses dibatasi. Mohon perpanjang.</p>) : (<><p className="text-2xl font-bold">{trialStatus.daysLeft} <span className="text-xs font-normal opacity-80">Hari Lagi</span></p><div className="w-full bg-black/20 h-1.5 rounded-full mt-2 overflow-hidden"><div className="bg-white h-full rounded-full" style={{ width: `${(trialStatus.daysLeft / 7) * 100}%` }}></div></div></>)}
-                    </div>
-                )}
-                <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-                    <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-2">Overview</p>
-                    <NavButton id="summary" name="Ringkasan Utama" view={view} setView={setView} icon={LayoutDashboard} disabled={trialStatus.expired} />
-                    <NavButton id="report" name="Laporan Harian" view={view} setView={setView} icon={List} disabled={trialStatus.expired} />
-                    <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-6">Analisis</p>
-                    <NavButton id="marketing" name="Analisis Marketing" view={view} setView={setView} icon={Megaphone} disabled={trialStatus.expired} />
-                    <NavButton id="segmentation" name="Segmen Pelanggan" view={view} setView={setView} icon={Users} disabled={trialStatus.expired} />
-                    <NavButton id="products" name="Analisis Produk" view={view} setView={setView} icon={Boxes} disabled={trialStatus.expired} />
-                    <NavButton id="time" name="Tren Waktu" view={view} setView={setView} icon={History} disabled={trialStatus.expired} />
-                    <NavButton id="heatmap" name="Heatmap Jam" view={view} setView={setView} icon={Grid3X3} disabled={trialStatus.expired} />
-                    <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-6">Action</p>
-                    <NavButton id="recovery" name="Recovery & Isu" view={view} setView={setView} icon={AlertTriangle} disabled={trialStatus.expired} />
-                    <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-6">Akun & Langganan</p>
-                    <NavButton id="billing" name="Billing / Paket" view={view} setView={setView} icon={CreditCard} disabled={false} />
-                    <NavButton id="tutorial" name="Panduan / Tutorial" view={view} setView={setView} icon={BookOpen} disabled={trialStatus.expired} />
-                </nav>
-                <div className="p-4 border-t border-gray-200">
-                    <div className="flex items-center gap-3 p-2 rounded-lg bg-gray-50">
-                        <UserButton />
-                        <div className="flex flex-col overflow-hidden"><span className="text-xs font-bold text-gray-700 truncate">{user?.fullName || 'User'}</span><span className="text-[10px] text-gray-500">{trialStatus.mode === 'subscription' && !trialStatus.expired ? 'Premium' : 'Free Tier'}</span></div>
-                    </div>
-                </div>
-            </aside>
+   return (
+    <div className="flex h-screen bg-gray-50 font-sans text-gray-900 overflow-hidden">
+        
+        {/* 1. MOBILE OVERLAY */}
+        {isMobileMenuOpen && (
+            <div 
+                className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden transition-opacity"
+                onClick={() => setIsMobileMenuOpen(false)}
+            ></div>
+        )}
 
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-                <header className="bg-white border-b border-gray-200 py-3 px-6 flex items-center justify-between shadow-sm z-20">
-                    <div className="md:hidden"><AppLogo /></div>
-                    <h2 className="hidden md:block text-lg font-bold text-gray-800 capitalize">{view.replace('_', ' ')} Dashboard</h2>
-                    <div className="flex items-center space-x-3">
-                        <button onClick={() => !trialStatus.expired && setShowUploadModal(true)} disabled={trialStatus.expired} className={`flex items-center px-4 py-2 rounded-lg transition shadow-sm text-sm font-bold ${trialStatus.expired ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
-                            {trialStatus.expired ? <Lock className="w-4 h-4 mr-2"/> : <Upload className="w-4 h-4 mr-2" />} Unggah Data
-                        </button>
-                    </div>
-                </header>
-                <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-50 relative">
-                    {isContentFrozen && (
-                        <div className="absolute inset-0 z-40 bg-gray-100/50 backdrop-grayscale cursor-not-allowed flex flex-col items-center justify-center">
-                            <div className="bg-white/90 p-6 rounded-full shadow-2xl backdrop-blur-sm animate-bounce"><Lock className="w-12 h-12 text-red-600" /></div>
-                            <p className="mt-4 font-bold text-red-700 bg-white/80 px-4 py-2 rounded-lg shadow-sm backdrop-blur-md">Mode Terkunci. Silakan ke menu Billing.</p>
-                        </div>
-                    )}
-                    <div className={isContentFrozen ? "pointer-events-none select-none filter blur-[2px]" : ""}>{renderContent()}</div>
-                </main>
+        {/* Notifikasi Expired */}
+        {trialStatus.expired && <ExpiredNotification />}
+
+        {/* 2. SIDEBAR (SUDAH DIPERBAIKI: Hapus 'hidden', Tambah 'flex flex-col') */}
+        <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-indigo-100 shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-auto flex flex-col ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            
+            <div className="p-6 border-b border-gray-100">
+                <AppLogo />
             </div>
 
-            {/* MODAL UPLOAD */}
-            {showUploadModal && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-down">
-                        <div className="p-6 pb-2">
-                            <h3 className="text-xl font-bold text-indigo-700 flex items-center gap-2"><Upload className="w-6 h-6" /> Unggah Data CSV</h3>
+            {!trialStatus.loading && (
+                <div className={`mx-4 mt-4 p-3 rounded-xl text-white shadow-lg ${trialStatus.expired ? 'bg-red-600' : (trialStatus.mode === 'subscription' ? 'bg-emerald-600' : 'bg-indigo-600')}`}>
+                    <div className="flex items-center justify-between mb-1"><span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-black/20">{trialStatus.expired ? 'EXPIRED' : (trialStatus.mode === 'subscription' ? 'Premium Plan' : 'Free Trial')}</span>{trialStatus.expired ? <Lock className="w-3 h-3 text-red-200"/> : <Clock className="w-3 h-3 text-white/70" />}</div>
+                    {trialStatus.expired ? (<p className="text-xs mt-1 font-medium text-red-100">Akses dibatasi. Mohon perpanjang.</p>) : (<><p className="text-2xl font-bold">{trialStatus.daysLeft} <span className="text-xs font-normal opacity-80">Hari Lagi</span></p><div className="w-full bg-black/20 h-1.5 rounded-full mt-2 overflow-hidden"><div className="bg-white h-full rounded-full" style={{ width: `${(trialStatus.daysLeft / 7) * 100}%` }}></div></div></>)}
+                </div>
+            )}
+            
+            <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+                <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-2">Overview</p>
+                <NavButton id="summary" name="Ringkasan Utama" view={view} setView={setView} icon={LayoutDashboard} disabled={trialStatus.expired} onClick={() => setIsMobileMenuOpen(false)} />
+                <NavButton id="report" name="Laporan Harian" view={view} setView={setView} icon={List} disabled={trialStatus.expired} onClick={() => setIsMobileMenuOpen(false)} />
+                <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-6">Analisis</p>
+                <NavButton id="marketing" name="Analisis Marketing" view={view} setView={setView} icon={Megaphone} disabled={trialStatus.expired} onClick={() => setIsMobileMenuOpen(false)} />
+                <NavButton id="segmentation" name="Segmen Pelanggan" view={view} setView={setView} icon={Users} disabled={trialStatus.expired} onClick={() => setIsMobileMenuOpen(false)} />
+                <NavButton id="products" name="Analisis Produk" view={view} setView={setView} icon={Boxes} disabled={trialStatus.expired} onClick={() => setIsMobileMenuOpen(false)} />
+                <NavButton id="time" name="Tren Waktu" view={view} setView={setView} icon={History} disabled={trialStatus.expired} onClick={() => setIsMobileMenuOpen(false)} />
+                <NavButton id="heatmap" name="Heatmap Jam" view={view} setView={setView} icon={Grid3X3} disabled={trialStatus.expired} onClick={() => setIsMobileMenuOpen(false)} />
+                <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-6">Action</p>
+                <NavButton id="recovery" name="Recovery & Isu" view={view} setView={setView} icon={AlertTriangle} disabled={trialStatus.expired} onClick={() => setIsMobileMenuOpen(false)} />
+                <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-6">Akun & Langganan</p>
+                <NavButton id="billing" name="Billing / Paket" view={view} setView={setView} icon={CreditCard} disabled={false} onClick={() => setIsMobileMenuOpen(false)} />
+                <NavButton id="tutorial" name="Panduan / Tutorial" view={view} setView={setView} icon={BookOpen} disabled={trialStatus.expired} onClick={() => setIsMobileMenuOpen(false)} />
+            </nav>
+            
+            <div className="p-4 border-t border-gray-200">
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-gray-50">
+                    <UserButton />
+                    <div className="flex flex-col overflow-hidden"><span className="text-xs font-bold text-gray-700 truncate">{user?.fullName || 'User'}</span><span className="text-[10px] text-gray-500">{trialStatus.mode === 'subscription' && !trialStatus.expired ? 'Premium' : 'Free Tier'}</span></div>
+                </div>
+            </div>
+        </aside>
+
+        {/* 3. KONTEN UTAMA */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+            
+            <header className="bg-white border-b border-gray-200 py-3 px-4 flex items-center justify-between shadow-sm z-20">
+                <div className="flex items-center gap-3 lg:hidden">
+                    <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+                        <Menu className="w-6 h-6" />
+                    </button>
+                    <h2 className="text-sm font-bold text-gray-800 capitalize">{view.replace('_', ' ')} Dashboard</h2>
+                </div>
+                <h2 className="hidden lg:block text-lg font-bold text-gray-800 capitalize">{view.replace('_', ' ')} Dashboard</h2>
+                
+                <div className="flex items-center space-x-3">
+                    <button onClick={() => !trialStatus.expired && setShowUploadModal(true)} disabled={trialStatus.expired} className={`flex items-center px-4 py-2 rounded-lg transition shadow-sm text-sm font-bold ${trialStatus.expired ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+                        {trialStatus.expired ? <Lock className="w-4 h-4 mr-2"/> : <Upload className="w-4 h-4 mr-2" />} Unggah Data
+                    </button>
+                </div>
+            </header>
+
+            <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-50 relative">
+                {isContentFrozen && (
+                    <div className="absolute inset-0 z-40 bg-gray-100/50 backdrop-grayscale cursor-not-allowed flex flex-col items-center justify-center">
+                        <div className="bg-white/90 p-6 rounded-full shadow-2xl backdrop-blur-sm animate-bounce"><Lock className="w-12 h-12 text-red-600" /></div>
+                        <p className="mt-4 font-bold text-red-700 bg-white/80 px-4 py-2 rounded-lg shadow-sm backdrop-blur-md">Mode Terkunci. Silakan ke menu Billing.</p>
+                    </div>
+                )}
+                
+                {/* SUDAH DIPERBAIKI: Tambah w-full agar Recharts tidak error */}
+                <div className="max-w-7xl mx-auto w-full">
+                    <div className={isContentFrozen ? "pointer-events-none select-none filter blur-[2px]" : ""}>{renderContent()}</div>
+                </div>
+            </main>
+        </div>
+
+        {/* 4. MODAL UPLOAD */}
+        {showUploadModal && (
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-down">
+                    <div className="p-6 pb-2">
+                        <h3 className="text-xl font-bold text-indigo-700 flex items-center gap-2"><Upload className="w-6 h-6" /> Unggah Data CSV</h3>
+                    </div>
+                    <div className="p-6 pt-2 space-y-6">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-800 mb-2">Jenis File Data:</label>
+                            <div className="grid grid-cols-2 gap-4">
+                                <button onClick={() => setUploadType('sales')} className={`flex flex-col items-center justify-center p-4 rounded-lg border transition-all ${uploadType === 'sales' ? 'border-2 border-indigo-500 bg-indigo-50 text-indigo-700' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                                    <ShoppingBag className="w-6 h-6 mb-2" />
+                                    <span className="text-xs font-bold text-center">Data Penjualan (CRM/Order)</span>
+                                </button>
+                                <button onClick={() => setUploadType('ads')} className={`flex flex-col items-center justify-center p-4 rounded-lg border transition-all ${uploadType === 'ads' ? 'border-2 border-indigo-500 bg-indigo-50 text-indigo-700' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                                    <Megaphone className="w-6 h-6 mb-2" />
+                                    <span className="text-xs font-bold text-center">Data Iklan (Meta Ads)</span>
+                                </button>
+                            </div>
                         </div>
-                        <div className="p-6 pt-2 space-y-6">
-                            {/* JENIS FILE DATA */}
-                            <div>
-                                <label className="block text-sm font-bold text-gray-800 mb-2">Jenis File Data:</label>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <button onClick={() => setUploadType('sales')} className={`flex flex-col items-center justify-center p-4 rounded-lg border transition-all ${uploadType === 'sales' ? 'border-2 border-indigo-500 bg-indigo-50 text-indigo-700' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                                        <ShoppingBag className="w-6 h-6 mb-2" />
-                                        <span className="text-xs font-bold text-center">Data Penjualan (CRM/Order)</span>
-                                    </button>
-                                    <button onClick={() => setUploadType('ads')} className={`flex flex-col items-center justify-center p-4 rounded-lg border transition-all ${uploadType === 'ads' ? 'border-2 border-indigo-500 bg-indigo-50 text-indigo-700' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                                        <Megaphone className="w-6 h-6 mb-2" />
-                                        <span className="text-xs font-bold text-center">Data Iklan (Meta Ads)</span>
-                                    </button>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">MODE UPLOAD:</label>
+                            <div className="flex flex-col gap-3">
+                                <div onClick={() => setUploadMode('merge')} className={`flex items-start p-3 rounded-lg border cursor-pointer transition-all ${uploadMode === 'merge' ? 'border-green-500 ring-1 ring-green-500 bg-white' : 'border-gray-200 hover:bg-gray-50'}`}>
+                                    <div className="flex items-center h-5"><input type="radio" checked={uploadMode === 'merge'} onChange={() => setUploadMode('merge')} className="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500"/></div>
+                                    <div className="ml-3"><span className="block text-sm font-bold text-gray-900 flex items-center gap-1"><PlusCircle className="w-4 h-4 text-green-600" /> Gabungkan Data Baru</span><span className="block text-xs text-gray-500">Tambahkan ke data yang sudah ada.</span></div>
+                                </div>
+                                <div onClick={() => setUploadMode('replace')} className={`flex items-start p-3 rounded-lg border cursor-pointer transition-all ${uploadMode === 'replace' ? 'border-red-500 ring-1 ring-red-500 bg-white' : 'border-gray-200 hover:bg-gray-50'}`}>
+                                    <div className="flex items-center h-5"><input type="radio" checked={uploadMode === 'replace'} onChange={() => setUploadMode('replace')} className="w-4 h-4 text-red-600 border-gray-300 focus:ring-red-500"/></div>
+                                    <div className="ml-3"><span className="block text-sm font-bold text-gray-900 flex items-center gap-1"><Trash2 className="w-4 h-4 text-red-600" /> Ganti Semua Data Lama</span><span className="block text-xs text-gray-500">Hapus data lama & ganti baru.</span></div>
                                 </div>
                             </div>
-
-                            {/* MODE UPLOAD */}
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">MODE UPLOAD:</label>
-                                <div className="flex flex-col gap-3">
-                                    <div onClick={() => setUploadMode('merge')} className={`flex items-start p-3 rounded-lg border cursor-pointer transition-all ${uploadMode === 'merge' ? 'border-green-500 ring-1 ring-green-500 bg-white' : 'border-gray-200 hover:bg-gray-50'}`}>
-                                        <div className="flex items-center h-5"><input type="radio" checked={uploadMode === 'merge'} onChange={() => setUploadMode('merge')} className="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500"/></div>
-                                        <div className="ml-3"><span className="block text-sm font-bold text-gray-900 flex items-center gap-1"><PlusCircle className="w-4 h-4 text-green-600" /> Gabungkan Data Baru</span><span className="block text-xs text-gray-500">Tambahkan ke data yang sudah ada.</span></div>
-                                    </div>
-                                    <div onClick={() => setUploadMode('replace')} className={`flex items-start p-3 rounded-lg border cursor-pointer transition-all ${uploadMode === 'replace' ? 'border-red-500 ring-1 ring-red-500 bg-white' : 'border-gray-200 hover:bg-gray-50'}`}>
-                                        <div className="flex items-center h-5"><input type="radio" checked={uploadMode === 'replace'} onChange={() => setUploadMode('replace')} className="w-4 h-4 text-red-600 border-gray-300 focus:ring-red-500"/></div>
-                                        <div className="ml-3"><span className="block text-sm font-bold text-gray-900 flex items-center gap-1"><Trash2 className="w-4 h-4 text-red-600" /> Ganti Semua Data Lama</span><span className="block text-xs text-gray-500">Hapus data lama & ganti baru.</span></div>
-                                    </div>
-                                </div>
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-3 mb-4">
+                                <label className="cursor-pointer bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold py-2 px-4 rounded-lg text-sm transition-colors shadow-sm border border-indigo-100">
+                                    Choose Files
+                                    <input type="file" className="hidden" accept=".csv" multiple onChange={handleFileUpload} disabled={isUploading} />
+                                </label>
+                                <span className="text-sm text-gray-500 truncate max-w-[200px]">{isUploading ? "Memproses..." : fileNameDisplay}</span>
                             </div>
-
-                            {/* FILE ACTION */}
-                            <div>
-                                <div className="flex items-center gap-3 mb-4">
-                                    <label className="cursor-pointer bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold py-2 px-4 rounded-lg text-sm transition-colors shadow-sm border border-indigo-100">
-                                        Choose Files
-                                        <input type="file" className="hidden" accept=".csv" multiple onChange={handleFileUpload} disabled={isUploading} />
-                                    </label>
-                                    <span className="text-sm text-gray-500 truncate max-w-[200px]">{isUploading ? "Memproses..." : fileNameDisplay}</span>
-                                </div>
-                                {uploadError && (<div className="mb-4 p-2 bg-red-50 text-red-600 text-xs rounded border border-red-200 flex items-center"><AlertTriangle className="w-4 h-4 mr-2" /> {uploadError}</div>)}
-                                <div className="space-y-3">
-                                    <button onClick={() => setShowUploadModal(false)} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-lg text-sm transition-colors">Batal</button>
-                                    <div className="border-t border-gray-100 pt-3">
-                                        <button onClick={handleDeleteData} className="w-full bg-red-100 hover:bg-red-200 text-red-700 font-bold py-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"><Trash2 className="w-4 h-4" /> Hapus SEMUA Data</button>
-                                    </div>
+                            {uploadError && (<div className="mb-4 p-2 bg-red-50 text-red-600 text-xs rounded border border-red-200 flex items-center"><AlertTriangle className="w-4 h-4 mr-2" /> {uploadError}</div>)}
+                            <div className="space-y-3">
+                                <button onClick={() => setShowUploadModal(false)} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-lg text-sm transition-colors">Batal</button>
+                                <div className="border-t border-gray-100 pt-3">
+                                    <button onClick={handleDeleteData} className="w-full bg-red-100 hover:bg-red-200 text-red-700 font-bold py-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"><Trash2 className="w-4 h-4" /> Hapus SEMUA Data</button>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            )}
-        </div>
-    );
+            </div>
+        )}
+    </div>
+);
 }
 
 // --- BAGIAN INI DITAMBAHKAN DI PALING BAWAH FILE (PENGGANTI EXPORT LAMA) ---
