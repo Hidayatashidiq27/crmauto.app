@@ -24,3 +24,13 @@ dist-ssr
 *.sw?
 .env
 .env.*
+
+# Vercel
+.vercel
+
+# Firebase
+.firebase
+firebase-debug.log
+
+# Windows thumbnail (Sering muncul otomatis)
+Thumbs.db
