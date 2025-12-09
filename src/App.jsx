@@ -4,7 +4,7 @@ import { supabase } from './supabaseClient';
 import { db } from "./firebase"; 
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, Sector, ComposedChart, AreaChart, Area, ScatterChart, Scatter, LabelList } from 'recharts';
-import { TrendingUp, MapPin, LayoutDashboard, AlertTriangle, CheckCircle, Upload, Users, DollarSign, List, Globe, Boxes, Award, Calendar, Layers, PlusCircle, Trash2, GitCommit, Target, Filter, Download, Clock, Repeat, MessageSquare, Copy, Info, History, CreditCard, UserCheck, Landmark, Grid3X3, Truck, HelpCircle, FileText, XCircle, Zap, Wallet, ShoppingBag, Activity, PieChart as PieChartIcon, BarChart2, Package, Search, RefreshCw, ArrowRight, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Check, TrendingDown, ClipboardCopy, Megaphone, MousePointer, Eye, Percent, Coins, Star, BookOpen, UserPlus, Heart, Share2, Shield, Gift, Smile, Settings, Save, RotateCcw, Lock, Menu, X } from 'lucide-react';
+import { TrendingUp, MapPin, LayoutDashboard, AlertTriangle, CheckCircle, Upload, Users, DollarSign, List, Globe, Boxes, Award, Calendar, Layers, PlusCircle, Trash2, GitCommit, Target, Filter, Download, Clock, Repeat, MessageSquare, Copy, Info, History, CreditCard, UserCheck, Landmark, Grid3X3, Truck, HelpCircle, FileText, XCircle, Zap, Wallet, ShoppingBag, Activity, PieChart as PieChartIcon, BarChart2, Package, Search, RefreshCw, ArrowRight, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Check, TrendingDown, ClipboardCopy, Megaphone, MousePointer, Eye, Percent, Coins, Star, BookOpen, UserPlus, Heart, Share2, Shield, Gift, Smile, Settings, Save, RotateCcw, Lock, Menu, X, User, Sparkles } from 'lucide-react';
 import myLogo from "./assets/logocrmauto.png";
 
 /**
@@ -3270,114 +3270,100 @@ const ProductAnalysisView = ({ productData }) => {
     );
 };
 
-// --- COMPONENT: BILLING VIEW ---
 const BillingView = () => {
-    const { user } = useUser();
-    
-    // Konfigurasi Paket Harga (Silakan sesuaikan harganya)
-    const plans = [
-        { 
-            id: 'monthly', 
-            name: '1 Bulan', 
-            days: 30, 
-            price: 99000, //
-            popular: false,
-            features: ['Akses Full Dashboard', 'Unlimited Upload Data' , 'Support Prioritas']
-        },
-        { 
-            id: 'yearly', 
-            name: '12 Bulan', 
-            days: 365, 
-            price: 990000, //
-            popular: true, // Label "Best Value"
-            features: ['Bayar 10 Bulan', 'Free 2 Bulan', 'Akses Early Bird Fitur Baru']
-        }
-    ];
-
-    const handlePurchase = (plan) => {
-        const adminPhone = "6287783026019";
-        // Format pesan otomatis
-        const message = `Halo Admin, saya ingin berlangganan *Paket ${plan.name} (${plan.days} Hari)* seharga *${formatRupiah(plan.price)}*.\n\nMohon info rekening pembayaran.\n\nID User Saya: ${user.id}`;
-        
-        const waLink = `https://wa.me/${adminPhone}?text=${encodeURIComponent(message)}`;
-        window.open(waLink, '_blank');
+    // --- [CONFIG LINK CHECKOUT] ---
+    const checkoutLinks = {
+        monthly: "https://crmauto.id/checkout-crmauto30",
+        yearly:  "https://crmauto.id/checkout-crmauto365"
     };
 
+    const [selectedPlan, setSelectedPlan] = React.useState('yearly'); // Default pilih tahunan
+
     return (
-        <div className="space-y-8 animate-fade-in pb-10">
-            <div className="text-center max-w-2xl mx-auto mb-10">
-                <h2 className="text-3xl font-black text-gray-900 mb-4">Pilih Paket Langganan</h2>
-                <p className="text-gray-500">
-                    Investasi terbaik untuk memantau performa bisnis Anda secara real-time. 
-                    Pilih durasi yang sesuai dengan kebutuhan Anda.
-                </p>
+        <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-10">
+            <div className="text-center">
+                <h2 className="text-2xl font-bold text-gray-900">Pilih Paket Langganan</h2>
+                <p className="text-gray-500 mt-2">Investasi terbaik untuk pertumbuhan bisnis Anda.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                {plans.map((plan) => (
-                    <div 
-                        key={plan.id} 
-                        className={`relative bg-white rounded-2xl shadow-lg border transition-all duration-300 hover:-translate-y-2 hover:shadow-xl flex flex-col ${plan.popular ? 'border-indigo-500 ring-2 ring-indigo-500 ring-offset-2' : 'border-gray-200'}`}
+            {/* Toggle Bulanan / Tahunan */}
+            <div className="flex justify-center mb-8">
+                <div className="bg-gray-100 p-1 rounded-lg flex items-center relative">
+                    <button 
+                        onClick={() => setSelectedPlan('monthly')}
+                        className={`px-4 py-2 text-sm font-bold rounded-md transition-all z-10 ${selectedPlan === 'monthly' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
                     >
-                        {plan.popular && (
-                            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-600 text-white text-[10px] font-bold uppercase tracking-widest py-1 px-3 rounded-full shadow-md">
-                                Paling Laris
-                            </div>
-                        )}
-
-                        <div className="p-6 border-b border-gray-100 text-center">
-                            <h3 className="text-lg font-bold text-gray-800">{plan.name}</h3>
-                            <div className="mt-4 flex items-baseline justify-center">
-                                <span className="text-3xl font-extrabold text-gray-900">
-                                    {new Intl.NumberFormat('id-ID').format(plan.price / 1000)}k
-                                </span>
-                                <span className="ml-1 text-sm font-medium text-gray-500">IDR</span>
-                            </div>
-                            <p className="text-xs text-gray-400 mt-1">per {plan.days} hari</p>
-                        </div>
-
-                        <div className="p-6 flex-1 flex flex-col">
-                            <ul className="space-y-4 mb-6 flex-1">
-                                {plan.features.map((feature, idx) => (
-                                    <li key={idx} className="flex items-start">
-                                        <div className="flex-shrink-0">
-                                            <Check className="h-4 w-4 text-green-500" />
-                                        </div>
-                                        <p className="ml-3 text-xs text-gray-600">{feature}</p>
-                                    </li>
-                                ))}
-                            </ul>
-                            
-                            <button
-                                onClick={() => handlePurchase(plan)}
-                                className={`w-full py-3 px-4 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center justify-center ${
-                                    plan.popular 
-                                    ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
-                                    : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-                                }`}
-                            >
-                                <Zap className="w-4 h-4 mr-2" />
-                                Pilih Paket Ini
-                            </button>
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 mt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="p-3 bg-white rounded-full shadow-sm">
-                        <CreditCard className="w-6 h-6 text-gray-600" />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-gray-800 text-sm">Butuh paket custom atau Enterprise?</h4>
-                        <p className="text-xs text-gray-500">Hubungi kami untuk penawaran khusus bagi bisnis skala besar.</p>
-                    </div>
+                        Bulanan
+                    </button>
+                    <button 
+                        onClick={() => setSelectedPlan('yearly')}
+                        className={`px-4 py-2 text-sm font-bold rounded-md transition-all z-10 flex items-center gap-2 ${selectedPlan === 'yearly' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                    >
+                        Tahunan <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">FREE 2 BULAN</span>
+                    </button>
                 </div>
-                <button onClick={() => window.open(`https://wa.me/6287783026019`, '_blank')} className="text-sm font-bold text-gray-600 hover:text-indigo-600 underline">
-                    Chat Admin
-                </button>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* --- CARD 1: PAKET BULANAN --- */}
+                <div className={`p-8 rounded-2xl border-2 transition-all ${selectedPlan === 'monthly' ? 'border-indigo-600 shadow-xl ring-4 ring-indigo-50 relative bg-white' : 'border-gray-100 bg-white opacity-60 hover:opacity-100'}`}>
+                    <h3 className="text-lg font-bold text-gray-900">Starter / Bulanan</h3>
+                    <div className="my-4">
+                        <span className="text-4xl font-extrabold text-gray-900">Rp 99rb</span>
+                        <span className="text-gray-500">/bulan</span>
+                    </div>
+                    <ul className="space-y-3 mb-8 text-sm text-gray-600">
+                        <li className="flex items-center"><CheckCircle className="w-4 h-4 text-green-500 mr-2"/> Full Akses Dashboard</li>
+                        <li className="flex items-center"><CheckCircle className="w-4 h-4 text-green-500 mr-2"/> Analisis Marketing</li>
+                        <li className="flex items-center"><CheckCircle className="w-4 h-4 text-green-500 mr-2"/> Export Data CSV</li>
+                    </ul>
+                    
+                    {/* TOMBOL LINK BULANAN */}
+                    <button 
+                        onClick={() => window.open(checkoutLinks.monthly, '_blank')}
+                        className="w-full py-3 rounded-xl font-bold transition-all bg-gray-100 text-gray-800 hover:bg-gray-200"
+                    >
+                        Pilih Bulanan
+                    </button>
+                </div>
+
+                {/* --- CARD 2: PAKET TAHUNAN (PROMO) --- */}
+                <div className={`p-8 rounded-2xl border-2 transition-all ${selectedPlan === 'yearly' ? 'border-indigo-600 shadow-xl ring-4 ring-indigo-50 relative bg-white' : 'border-gray-100 bg-white opacity-60 hover:opacity-100'}`}>
+                    {selectedPlan === 'yearly' && (
+                        <div className="absolute top-0 right-0 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-bl-xl rounded-tr-lg">
+                            BEST VALUE
+                        </div>
+                    )}
+                    <h3 className="text-lg font-bold text-gray-900">Pro / Tahunan</h3>
+                    <div className="my-4">
+                        <span className="text-4xl font-extrabold text-gray-900">Rp 990rb</span>
+                        <span className="text-gray-500">/tahun</span>
+                    </div>
+                    
+                    {/* KETERANGAN PROMO */}
+                    <p className="text-xs text-green-700 font-bold mb-4 bg-green-100 inline-block px-3 py-1.5 rounded-lg border border-green-200">
+                        🎉 Bayar 10 bulan, Free 2 bulan!
+                    </p>
+                    
+                    <ul className="space-y-3 mb-8 text-sm text-gray-600">
+                        <li className="flex items-center"><CheckCircle className="w-4 h-4 text-indigo-500 mr-2"/> <b>Semua Fitur Bulanan</b></li>
+                        <li className="flex items-center"><CheckCircle className="w-4 h-4 text-indigo-500 mr-2"/> Prioritas Support</li>
+                        <li className="flex items-center"><CheckCircle className="w-4 h-4 text-indigo-500 mr-2"/> Akses Update Fitur Baru</li>
+                    </ul>
+
+                    {/* TOMBOL LINK TAHUNAN */}
+                    <button 
+                        onClick={() => window.open(checkoutLinks.yearly, '_blank')}
+                        className="w-full py-3 rounded-xl font-bold transition-all shadow-lg hover:shadow-indigo-200 bg-indigo-600 text-white hover:bg-indigo-700 transform hover:-translate-y-1"
+                    >
+                        Ambil Promo Tahunan &rarr;
+                    </button>
+                </div>
+            </div>
+            
+            <p className="text-center text-xs text-gray-400 mt-8">
+                Pembayaran aman diproses melalui Payment Gateway terpercaya.
+            </p>
         </div>
     );
 };
@@ -3797,45 +3783,49 @@ function DashboardCRM() {
         return csvRows.join('\n');
     };
 
-    // Load Data & Check Trial Status
+    // Load Data & Check Subscription (Email Based)
     useEffect(() => {
         const initDashboard = async () => {
-            if (user && user.id) {
+            // Pastikan user punya email
+            if (user && user.primaryEmailAddress?.emailAddress) {
                 setIsLoadingFirestore(true);
                 try {
-                    const docRef = doc(db, "user_datasets", user.id);
+                    // --- PERUBAHAN UTAMA DI SINI ---
+                    // Kita pakai EMAIL sebagai ID, bukan user.id lagi
+                    const userEmail = user.primaryEmailAddress.emailAddress;
+                    const docRef = doc(db, "user_datasets", userEmail);
+                    
                     const docSnap = await getDoc(docRef);
                     const now = new Date();
-                    let currentTrialStart = null;
 
                     if (docSnap.exists()) {
                         const data = docSnap.data();
                         
+                        // 1. CEK STATUS LANGGANAN (Dari Scalev/Make.com)
                         if (data.expiryDate) {
-                            const expiry = new Date(data.expiryDate);
+                            // Konversi Timestamp Firestore ke Date Javascript
+                            let expiry;
+                            if (data.expiryDate.toDate) {
+                                expiry = data.expiryDate.toDate(); 
+                            } else {
+                                expiry = new Date(data.expiryDate);
+                            }
+
                             if (now < expiry) {
+                                // MASIH AKTIF (PREMIUM)
                                 const diffDays = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
                                 setTrialStatus({ loading: false, expired: false, daysLeft: diffDays, mode: 'subscription' });
                             } else {
+                                // SUDAH HABIS (EXPIRED)
                                 setTrialStatus({ loading: false, expired: true, daysLeft: 0, mode: 'subscription' });
                             }
                         } else {
-                            if (data.trialStartDate) {
-                                currentTrialStart = new Date(data.trialStartDate);
-                            } else {
-                                currentTrialStart = new Date();
-                                await setDoc(docRef, { trialStartDate: currentTrialStart.toISOString() }, { merge: true });
-                            }
-                            const diffDays = (now - currentTrialStart) / (1000 * 60 * 60 * 24);
-                            const trialLimit = 7;
-                            
-                            if (diffDays > trialLimit) {
-                                setTrialStatus({ loading: false, expired: true, daysLeft: 0, mode: 'trial' });
-                            } else {
-                                setTrialStatus({ loading: false, expired: false, daysLeft: Math.ceil(trialLimit - diffDays), mode: 'trial' });
-                            }
+                            // Data ada (mungkin trial manual), tapi tidak ada expiryDate dari Scalev
+                            // Default: Anggap Expired atau Kasih Trial 1 hari (Tergantung kebijakan Anda)
+                            setTrialStatus({ loading: false, expired: true, daysLeft: 0, mode: 'trial' });
                         }
 
+                        // 2. LOAD DATA CSV/JSON (Agar Grafik Muncul)
                         if (data.salesDataUrl) {
                             const res = await fetch(`${data.salesDataUrl}?t=${new Date().getTime()}`);
                             if (res.ok) {
@@ -3852,15 +3842,29 @@ function DashboardCRM() {
                                 else setAdsData(parseCSV(textData).data);
                             }
                         }
+
                     } else {
-                        currentTrialStart = new Date();
-                        await setDoc(docRef, { trialStartDate: currentTrialStart.toISOString(), createdAt: new Date().toISOString() });
+                        // 3. JIKA USER TIDAK DITEMUKAN (Belum pernah beli di Scalev)
+                        // Mode: Langsung Kunci (Expired)
+                        console.log("User belum terdaftar di database langganan.");
+                        setTrialStatus({ loading: false, expired: true, daysLeft: 0, mode: 'none' });
+                        
+                        // Opsi: Jika Anda ingin memberi Free Trial otomatis untuk user baru yang belum bayar,
+                        // Uncomment baris di bawah ini dan Comment baris setTrialStatus di atas:
+                        /*
+                        await setDoc(docRef, { trialStartDate: now.toISOString(), createdAt: now.toISOString() });
                         setTrialStatus({ loading: false, expired: false, daysLeft: 7, mode: 'trial' });
+                        */
                     }
-                } catch (error) { console.error(error); } 
-                finally { setIsLoadingFirestore(false); }
+                } catch (error) { 
+                    console.error("Error loading dashboard:", error); 
+                    setTrialStatus(prev => ({ ...prev, loading: false, expired: true }));
+                } finally { 
+                    setIsLoadingFirestore(false); 
+                }
             }
         };
+        
         initDashboard();
     }, [user]);
 
@@ -4099,7 +4103,7 @@ function DashboardCRM() {
         }
     };
 
-    const isContentFrozen = trialStatus.expired && view !== 'billing';
+    const isContentFrozen = false;
 
    return (
     <div className="flex h-screen bg-gray-50 font-sans text-gray-900 overflow-hidden">
@@ -4122,12 +4126,43 @@ function DashboardCRM() {
                 <AppLogo />
             </div>
 
-            {!trialStatus.loading && (
-                <div className={`mx-4 mt-4 p-3 rounded-xl text-white shadow-lg ${trialStatus.expired ? 'bg-red-600' : (trialStatus.mode === 'subscription' ? 'bg-emerald-600' : 'bg-indigo-600')}`}>
-                    <div className="flex items-center justify-between mb-1"><span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-black/20">{trialStatus.expired ? 'EXPIRED' : (trialStatus.mode === 'subscription' ? 'Premium Plan' : 'Free Trial')}</span>{trialStatus.expired ? <Lock className="w-3 h-3 text-red-200"/> : <Clock className="w-3 h-3 text-white/70" />}</div>
-                    {trialStatus.expired ? (<p className="text-xs mt-1 font-medium text-red-100">Akses dibatasi. Mohon perpanjang.</p>) : (<><p className="text-2xl font-bold">{trialStatus.daysLeft} <span className="text-xs font-normal opacity-80">Hari Lagi</span></p><div className="w-full bg-black/20 h-1.5 rounded-full mt-2 overflow-hidden"><div className="bg-white h-full rounded-full" style={{ width: `${(trialStatus.daysLeft / 7) * 100}%` }}></div></div></>)}
-                </div>
-            )}
+            {/* BAGIAN SIDEBAR STATUS AKUN */}
+{!trialStatus.loading && (
+    <div className={`mx-4 mt-4 p-4 rounded-xl text-white shadow-lg transition-colors duration-300 
+        ${trialStatus.mode === 'subscription' ? 'bg-emerald-600' : 'bg-slate-700'}`}>
+        
+        {/* Header Status */}
+        <div className="flex items-center justify-between mb-3">
+            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${trialStatus.mode === 'subscription' ? 'bg-emerald-800 text-emerald-100' : 'bg-slate-900 text-slate-300'}`}>
+                {trialStatus.mode === 'subscription' ? 'PREMIUM' : 'BASIC PLAN'}
+            </span>
+            {trialStatus.mode === 'subscription' ? <CheckCircle className="w-4 h-4 text-emerald-200"/> : <User className="w-4 h-4 text-slate-400" />}
+        </div>
+
+        {/* Info Detail */}
+        <div>
+            <p className="text-lg font-bold">
+                {trialStatus.mode === 'subscription' ? 'Member Aktif' : 'Akun Gratis'}
+            </p>
+            <p className="text-xs opacity-80 mt-1 leading-relaxed">
+                {trialStatus.mode === 'subscription' 
+                    ? 'Akses penuh ke semua fitur.' 
+                    : 'Upgrade ke Premium untuk fitur lebih lengkap.'}
+            </p>
+        </div>
+
+        {/* Tombol Upgrade (Hanya muncul jika belum Premium) */}
+        {trialStatus.mode !== 'subscription' && (
+            <button 
+                onClick={() => setView('billing')}
+                className="w-full mt-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center justify-center gap-1"
+            >
+                <Sparkles className="w-3 h-3" />
+                Upgrade Pro
+            </button>
+        )}
+    </div>
+)}
             
             <nav className="flex-1 overflow-y-auto p-4 space-y-1">
                 <p className="px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-2">Overview</p>
