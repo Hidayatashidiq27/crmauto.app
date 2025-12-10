@@ -3914,8 +3914,13 @@ const handleFileUpload = async (event) => {
         if (combinedNewData.length === 0) { 
             setUploadError('File kosong atau format salah.'); 
         } else {
-            // Cek user.email (BUKAN user.id)
-            if (!user || !user.email) {
+            // --- PERBAIKAN DISINI ---
+            // 1. Ambil email dari path yang benar (Clerk)
+            // 2. Gunakan toLowerCase() agar konsisten dengan Rules Firebase
+            const userEmail = user?.primaryEmailAddress?.emailAddress?.toLowerCase();
+
+            // Cek apakah userEmail valid
+            if (!user || !userEmail) {
                 throw new Error("User email tidak ditemukan. Silakan login ulang.");
             }
 
@@ -3929,18 +3934,20 @@ const handleFileUpload = async (event) => {
                 }
                 setRawData(updatedData);
                 
-                // PERBAIKAN DISINI: Pakai user.email
-                const url = await uploadToSupabase(user.email, updatedData, 'sales_data');
-                await setDoc(doc(db, "user_datasets", user.email), { salesDataUrl: url, lastUpdated: new Date() }, { merge: true });
+                // Gunakan variable 'userEmail' yang sudah didefinisikan di atas
+                const url = await uploadToSupabase(userEmail, updatedData, 'sales_data');
+                
+                // Simpan ke Firestore pakai userEmail
+                await setDoc(doc(db, "user_datasets", userEmail), { salesDataUrl: url, lastUpdated: new Date() }, { merge: true });
                 
             } else {
                 let updatedAds;
                 if (uploadMode === 'replace') { updatedAds = combinedNewData; } else { updatedAds = [...adsData, ...combinedNewData]; }
                 setAdsData(updatedAds);
                 
-                // PERBAIKAN DISINI: Pakai user.email
-                const url = await uploadToSupabase(user.email, updatedAds, 'ads_data');
-                await setDoc(doc(db, "user_datasets", user.email), { adsDataUrl: url, lastUpdated: new Date() }, { merge: true });
+                // Gunakan variable 'userEmail'
+                const url = await uploadToSupabase(userEmail, updatedAds, 'ads_data');
+                await setDoc(doc(db, "user_datasets", userEmail), { adsDataUrl: url, lastUpdated: new Date() }, { merge: true });
             }
             
             setShowUploadModal(false); 
