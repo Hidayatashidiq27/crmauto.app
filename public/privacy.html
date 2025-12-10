@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kebijakan Privasi - CRM Auto Intelligence</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="max-w-4xl mx-auto px-6 py-12 bg-white shadow-xl my-10 rounded-2xl">
+        
+        <div class="text-center mb-12">
+            <h1 class="text-3xl font-bold text-indigo-900">Kebijakan Privasi</h1>
+            <p class="text-gray-500 mt-2">Terakhir Diperbarui: 10 Desember 2025</p>
+        </div>
+
+        <div class="space-y-8">
+            <!-- 1. Intro -->
+            <section>
+                <h2 class="text-xl font-bold text-gray-900 mb-3">1. Pendahuluan</h2>
+                <p class="leading-relaxed">
+                    Selamat datang di <strong>CRM Auto Intelligence</strong> ("Kami", "Aplikasi"). Kami menghargai privasi data bisnis Anda. Kebijakan ini menjelaskan bagaimana kami mengumpulkan, menggunakan, dan melindungi data pribadi serta data penjualan yang Anda unggah ke platform kami (app.crmauto.id).
+                </p>
+            </section>
+
+            <!-- 2. Data yang Kami Kumpulkan -->
+            <section>
+                <h2 class="text-xl font-bold text-gray-900 mb-3">2. Data yang Kami Kumpulkan</h2>
+                <ul class="list-disc pl-5 space-y-2 leading-relaxed">
+                    <li><strong>Informasi Akun:</strong> Alamat Email, Nama, dan Foto Profil (yang didapatkan melalui Google Sign-In atau pendaftaran Email).</li>
+                    <li><strong>Data Bisnis (File CSV):</strong> File data penjualan (seperti dari Scalev, OrderOnline) dan data iklan (Ads Manager) yang Anda unggah secara sukarela untuk keperluan analisis.</li>
+                    <li><strong>Status Langganan:</strong> Data mengenai status pembayaran dan masa aktif akun Anda.</li>
+                </ul>
+            </section>
+
+            <!-- 3. Penggunaan Teknologi (Firebase & Supabase) -->
+            <section class="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+                <h2 class="text-xl font-bold text-indigo-900 mb-3">3. Penyimpanan & Keamanan Data (Teknis)</h2>
+                <p class="leading-relaxed mb-4">
+                    Kami menggunakan infrastruktur cloud standar industri untuk menjaga keamanan data Anda:
+                </p>
+                <ul class="list-disc pl-5 space-y-3 leading-relaxed text-sm">
+                    <li>
+                        <strong>Google Firebase (Authentication & Database):</strong> 
+                        Kami menggunakan Firebase untuk proses Login yang aman. Alamat Email Anda digunakan sebagai <em>Unique Identifier</em> (Kunci Utama) untuk memastikan bahwa hanya Anda yang dapat mengakses dashboard dan data langganan Anda.
+                    </li>
+                    <li>
+                        <strong>Supabase (File Storage):</strong> 
+                        File CSV yang Anda unggah disimpan di <em>Supabase Storage</em> yang terenkripsi. 
+                        <br>Kami menggunakan teknologi <strong>Signed URL</strong> (Tautan Terenkripsi Berwaktu) yang memastikan file Anda tidak dapat diakses oleh publik secara sembarangan tanpa otorisasi login yang sah.
+                    </li>
+                </ul>
+            </section>
+
+            <!-- 4. Penggunaan Data -->
+            <section>
+                <h2 class="text-xl font-bold text-gray-900 mb-3">4. Bagaimana Kami Menggunakan Data Anda</h2>
+                <p class="leading-relaxed">
+                    Data yang Anda berikan hanya digunakan untuk:
+                </p>
+                <ul class="list-disc pl-5 space-y-1 mt-2 leading-relaxed">
+                    <li>Menampilkan visualisasi grafik dan analisis profit di Dashboard Anda.</li>
+                    <li>Memverifikasi status kepemilikan akun dan langganan (Pro/Free).</li>
+                    <li>Memberikan rekomendasi strategi bisnis (jika Anda menggunakan fitur AI).</li>
+                </ul>
+                <p class="mt-4 font-bold text-red-600">
+                    KAMI TIDAK AKAN PERNAH MENJUAL, MENYEBARKAN, ATAU MEMBAGIKAN DATA PELANGGAN/PENJUALAN ANDA KE PIHAK KETIGA MANAPUN.
+                </p>
+            </section>
+
+            <!-- 5. Hak Pengguna -->
+            <section>
+                <h2 class="text-xl font-bold text-gray-900 mb-3">5. Hak Anda (Kontrol Penuh)</h2>
+                <p class="leading-relaxed">
+                    Anda memiliki kendali penuh atas data Anda. Di dalam aplikasi, kami menyediakan fitur <strong>"Hapus Semua Data"</strong>. 
+                    <br><br>
+                    Jika Anda menekan tombol tersebut, sistem kami akan secara otomatis menghapus referensi file CSV Anda dari database kami, sehingga data tersebut tidak lagi dapat ditampilkan atau diakses.
+                </p>
+            </section>
+
+            <!-- 6. Pembayaran -->
+            <section>
+                <h2 class="text-xl font-bold text-gray-900 mb-3">6. Transaksi Pembayaran</h2>
+                <p class="leading-relaxed">
+                    Kami menggunakan layanan pihak ketiga (seperti Scalev/Payment Gateway) untuk memproses pembayaran langganan. Kami tidak menyimpan informasi Kartu Kredit atau data perbankan sensitif Anda di server kami.
+                </p>
+            </section>
+
+            <!-- 7. Hubungi Kami -->
+            <section class="pt-6 border-t border-gray-200">
+                <h2 class="text-xl font-bold text-gray-900 mb-3">7. Hubungi Kami</h2>
+                <p class="leading-relaxed">
+                    Jika Anda memiliki pertanyaan mengenai kebijakan privasi ini atau ingin mengajukan penghapusan akun permanen, silakan hubungi kami melalui:
+                </p>
+                <p class="mt-2 font-medium text-indigo-600">Email: support@crmauto.id</p>
+            </section>
+
+        </div>
+
+        <div class="mt-12 text-center">
+            <a href="index.html" class="inline-block bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-6 rounded-lg transition">
+                &larr; Kembali ke Beranda
+            </a>
+        </div>
+
+    </div>
+
+</body>
+</html>
