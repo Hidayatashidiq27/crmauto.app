@@ -11,8 +11,9 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// Nyalakan Aplikasi Firebase
-const app = initializeApp(firebaseConfig);
+// --- PERUBAHAN DI SINI ---
+// Tambahkan 'export' agar bisa dipanggil di App.jsx
+export const app = initializeApp(firebaseConfig);
 
 // Siapkan Database agar bisa dipakai di App.jsx
 export const db = getFirestore(app);

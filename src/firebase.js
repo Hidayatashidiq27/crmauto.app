@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
+// Mengambil kunci rahasia dari file .env
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -10,5 +11,9 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-const app = initializeApp(firebaseConfig);
+// --- PERUBAHAN PENTING ---
+// Pastikan ada kata 'export' di depan const app
+export const app = initializeApp(firebaseConfig);
+
+// Pastikan ada kata 'export' di depan const db
 export const db = getFirestore(app);
